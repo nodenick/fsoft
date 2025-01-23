@@ -2,17 +2,33 @@ import { useState } from "react";
 import ProgressBar from "../components/processbar";
 export default function Home() {
   const [showForm, setShowForm] = useState(false);
+  const [currentStep, setCurrentStep] = useState(0);
+  const [isProcessing, setIsProcessing] = useState(false);
 
   const toggleForm = () => {
     setShowForm(!showForm);
   };
 
+  const startProcess = async () => {
+    const steps = ["Send OTP", "Verify OTP", "Appointment Time", "Pay Now"];
+
+    setIsProcessing(true);
+
+    for (let i = 0; i < steps.length; i++) {
+      // Simulate an API call delay
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      setCurrentStep(i + 1);
+    }
+
+    setIsProcessing(false);
+  };
+
   return (
     <div style={{ padding: "20px", fontFamily: "Arial, sans-serif" }}>
-      <h1>Welcome to VISA TOKEN</h1>
-      
+      <h1>Welcome to Next.js!</h1>
+      <p>This is an initial setup.</p>
 
-      
+      <hr style={{ margin: "20px 0" }} />
 
       <button
         onClick={toggleForm}
@@ -27,7 +43,7 @@ export default function Home() {
       >
         {showForm ? "Hide Form" : "Add Form"}
       </button>
-      <hr style={{ margin: "20px 0" }} />
+
       {showForm && (
         <div
           style={{
@@ -145,6 +161,24 @@ export default function Home() {
           </form>
         </div>
       )}
+
+      <ProgressBar currentStep={currentStep} />
+
+      <button
+        onClick={startProcess}
+        disabled={isProcessing}
+        style={{
+          marginTop: "20px",
+          padding: "10px 20px",
+          backgroundColor: isProcessing ? "#ccc" : "#007BFF",
+          color: "white",
+          border: "none",
+          borderRadius: "5px",
+          cursor: isProcessing ? "not-allowed" : "pointer",
+        }}
+      >
+        {isProcessing ? "Processing..." : "Start Process"}
+      </button>
     </div>
   );
 }
