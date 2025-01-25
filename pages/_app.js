@@ -1,9 +1,12 @@
 import { DataProvider } from "../context/DataContext";
+import { AuthProvider } from "../context/AuthContext";
 
 export default function App({ Component, pageProps }) {
   return (
-    <DataProvider>
-      <Component {...pageProps} />
-    </DataProvider>
+    <AuthProvider>
+      <DataProvider>
+        <Component {...pageProps} />
+      </DataProvider>
+    </AuthProvider>
   );
 }
