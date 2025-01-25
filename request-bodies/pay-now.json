@@ -1,0 +1,57 @@
+{
+  "action": "payInvoice",
+  "info": [
+    {
+      "web_id": "BGDRV08EF525",
+      "web_id_repeat": "BGDRV08EF525",
+      "passport": "",
+      "name": "PAROSH MAHMUD",
+      "phone": "01715963847",
+      "email": "prparosh@gmail.com",
+      "amount": "800.00",
+      "captcha": "",
+      "center": {
+        "id": 3,
+        "c_name": "Rajshahi",
+        "prefix": "R",
+        "is_delete": 0
+      },
+      "is_open": "true",
+      "ivac": {
+        "id": 2,
+        "ivac_name": "IVAC, RAJSHAHI",
+        "address": "Morium Ali Tower...",
+        "prefix": "R",
+        "visa_fee": "800.00",
+        "charge": 3,
+        "new_visa_fee": "800.00"
+      },
+      "amountChangeData": {
+        "new_visa_fee": "800.00"
+      },
+      "visa_type": {
+        "id": 6,
+        "type_name": "STUDENT VISA",
+        "is_active": 1
+      },
+      "confirm_tos": "true",
+      "otp": "576207",
+      "appointment_time": "2025-01-27"
+    }
+  ],
+  "selected_payment": {
+    "name": "Bkash",
+    "slug": "bkash",
+    "grand_total": 824,
+    "link": "https://securepay.sslcommerz.com/gwprocess/v4/image/gw1/bkash.png"
+  },
+  "selected_slot": {
+    "id": 176427,
+    "ivac_id": 2,
+    "visa_type": 18,
+    "hour": 10,
+    "date": "2025-01-27",
+    "availableSlot": 4,
+    "time_display": "10:00 - 10:59"
+  }
+}

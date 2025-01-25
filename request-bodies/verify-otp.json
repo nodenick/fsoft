@@ -1,0 +1,69 @@
+{
+  "action": "verifyOtp",
+  "otp": "370197",
+  "info": [
+    {
+      "web_id": "BGDRV08EF525",
+      "web_id_repeat": "BGDRV08EF525",
+      "passport": "",
+      "name": "PAROSH MAHMUD",
+      "phone": "01715963847",
+      "email": "prparosh@gmail.com",
+      "amount": "800.00",
+      "captcha": "",
+      "center": {
+        "id": 3,
+        "c_name": "Rajshahi",
+        "prefix": "R",
+        "is_delete": 0,
+        "created_by": "",
+        "created_at": "",
+        "updated_at": ""
+      },
+      "is_open": "true",
+      "ivac": {
+        "id": 2,
+        "center_info_id": 3,
+        "ivac_name": "IVAC, RAJSHAHI",
+        "address": "Morium Ali Tower...",
+        "prefix": "R",
+        "created_on": "2017-08-30 13:06:20",
+        "visa_fee": "800.00",
+        "is_delete": 0,
+        "created_at": "",
+        "updated_at": "",
+        "app_key": "IVACRAJSHAHI",
+        "contact_number": "",
+        "created_by": "",
+        "charge": 3,
+        "new_visa_fee": "800.00",
+        "old_visa_fee": "800.00",
+        "new_fees_applied_from": "2018-08-05 00:00:00",
+        "notify_fees_from": "2018-07-29 04:54:32",
+        "max_notification_count": 2,
+        "allow_old_amount_until_new_date": 2,
+        "notification_text_beside_amount": "(From <from> this IVAC fees will be <new_amount> BDT)",
+        "notification_text_popup": ""
+      },
+      "amountChangeData": {
+        "allow_old_amount_until_new_date": 2,
+        "max_notification_count": 0,
+        "old_visa_fees": "800.00",
+        "new_fees_applied_from": "2018-08-05 00:00:00",
+        "notice": "false",
+        "notice_short": "",
+        "notice_popup": "",
+        "new_visa_fee": "800.00"
+      },
+      "visa_type": {
+        "id": 6,
+        "type_name": "ENTRY VISA",
+        "order": 6,
+        "is_active": 1,
+        "$$hashKey": "object:52"
+      },
+      "confirm_tos": "true",
+      "otp": "370197"
+    }
+  ]
+}

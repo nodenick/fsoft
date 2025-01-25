@@ -1,0 +1,635 @@
+// // pages/index.js
+// import { useState, useContext } from "react";
+// import sendOtpBody from "../request-bodies/send-otp.json";
+// import verifyOtpBody from "../request-bodies/verify-otp.json";
+// import aptimeBody from "../request-bodies/appointment-time.json";
+// import paynowBody from "../request-bodies/pay-now.json";
+// import FormComponent from "../components/form";
+// import { FormProvider, FormContext } from "../context/SendotpFormContext";
+
+// export default function Home() {
+//   const { formData } = useContext(FormContext);
+//   const [response, setResponse] = useState(null);
+//   const [error, setError] = useState(null);
+//   const [showForm, setShowForm] = useState(false);
+//   const toggleForm = () => {
+//     setShowForm((prev) => !prev);
+//   };
+
+//   const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
+
+//   const testSendOtp = async () => {
+//     const endpoint = `${baseUrl}/api/v1/send-otp`;
+//     try {
+//       console.log("Sending request to:", endpoint);
+//       console.log("Request Body:", sendOtpBody);
+
+//       const res = await fetch(endpoint, {
+//         method: "POST",
+//         headers: {
+//           "Content-Type": "application/json",
+//         },
+//         body: JSON.stringify(sendOtpBody),
+//       });
+
+//       if (!res.ok) {
+//         throw new Error(`HTTP error! status: ${res.status}`);
+//       }
+
+//       const data = await res.json();
+//       console.log("Response Data:", data);
+//       setResponse(data);
+//     } catch (err) {
+//       console.error("Error occurred:", err.message);
+//       setError(err.message);
+//     }
+//   };
+
+//   const testVerifyOtp = async () => {
+//     const endpoint = `${baseUrl}/api/v1/verify-otp`;
+//     try {
+//       console.log("Sending request to:", endpoint);
+//       console.log("Request Body:", verifyOtpBody);
+
+//       const res = await fetch(endpoint, {
+//         method: "POST",
+//         headers: {
+//           "Content-Type": "application/json",
+//         },
+//         body: JSON.stringify(verifyOtpBody),
+//       });
+
+//       if (!res.ok) {
+//         throw new Error(`HTTP error! status: ${res.status}`);
+//       }
+
+//       const data = await res.json();
+//       console.log("Response Data:", data);
+//       setResponse(data);
+//     } catch (err) {
+//       console.error("Error occurred:", err.message);
+//       setError(err.message);
+//     }
+//   };
+
+//   const testAptime = async () => {
+//     const endpoint = `${baseUrl}/api/v1/aptime`;
+//     try {
+//       console.log("Sending request to:", endpoint);
+//       console.log("Request Body:", aptimeBody);
+
+//       const res = await fetch(endpoint, {
+//         method: "POST",
+//         headers: {
+//           "Content-Type": "application/json",
+//         },
+//         body: JSON.stringify(aptimeBody),
+//       });
+
+//       if (!res.ok) {
+//         throw new Error(`HTTP error! status: ${res.status}`);
+//       }
+
+//       const data = await res.json();
+//       console.log("Response Data:", data);
+//       setResponse(data);
+//     } catch (err) {
+//       console.error("Error occurred:", err.message);
+//       setError(err.message);
+//     }
+//   };
+
+//   const testPayNow = async () => {
+//     const endpoint = `${baseUrl}/api/v1/paynow`;
+//     try {
+//       console.log("Sending request to:", endpoint);
+//       console.log("Request Body:", paynowBody);
+
+//       const res = await fetch(endpoint, {
+//         method: "POST",
+//         headers: {
+//           "Content-Type": "application/json",
+//         },
+//         body: JSON.stringify(paynowBody),
+//       });
+
+//       if (!res.ok) {
+//         throw new Error(`HTTP error! status: ${res.status}`);
+//       }
+
+//       const data = await res.json();
+//       console.log("Response Data:", data);
+//       setResponse(data);
+//     } catch (err) {
+//       console.error("Error occurred:", err.message);
+//       setError(err.message);
+//     }
+//   };
+
+//   return (
+//     <div style={{ padding: "20px", fontFamily: "Arial, sans-serif" }}>
+//       <h1>API Test with Next.js</h1>
+//       <FormComponent />
+//       <button
+//         onClick={testSendOtp}
+//         style={{
+//           padding: "10px 20px",
+//           backgroundColor: "#007BFF",
+//           color: "white",
+//           border: "none",
+//           borderRadius: "5px",
+//           cursor: "pointer",
+//           marginRight: "10px",
+//         }}
+//       >
+//         Test Send OTP
+//       </button>
+
+//       <button
+//         onClick={testVerifyOtp}
+//         style={{
+//           padding: "10px 20px",
+//           backgroundColor: "#28a745",
+//           color: "white",
+//           border: "none",
+//           borderRadius: "5px",
+//           cursor: "pointer",
+//           marginRight: "10px",
+//         }}
+//       >
+//         Test Verify OTP
+//       </button>
+
+//       <button
+//         onClick={testAptime}
+//         style={{
+//           padding: "10px 20px",
+//           backgroundColor: "#ffc107",
+//           color: "white",
+//           border: "none",
+//           borderRadius: "5px",
+//           cursor: "pointer",
+//           marginRight: "10px",
+//         }}
+//       >
+//         Test Appointment Time
+//       </button>
+
+//       <button
+//         onClick={testPayNow}
+//         style={{
+//           padding: "10px 20px",
+//           backgroundColor: "#dc3545",
+//           color: "white",
+//           border: "none",
+//           borderRadius: "5px",
+//           cursor: "pointer",
+//         }}
+//       >
+//         Test Pay Now
+//       </button>
+
+//       {response && (
+//         <div style={{ marginTop: "20px", color: "green" }}>
+//           <h3>Response:</h3>
+//           <pre>{JSON.stringify(response, null, 2)}</pre>
+//         </div>
+//       )}
+
+//       {error && (
+//         <div style={{ marginTop: "20px", color: "red" }}>
+//           <h3>Error:</h3>
+//           <p>{error}</p>
+//         </div>
+//       )}
+//     </div>
+//   );
+// }
+
+// pages/index.js
+// pages/index.js
+// import { useState, useContext } from "react";
+// import FormComponent from "../components/form";
+// import { FormContext } from "../context/SendotpFormContext";
+// import { callApi } from "../services/api";
+
+// export default function Home() {
+//   const { formData } = useContext(FormContext);
+//   const [showForm, setShowForm] = useState(true);
+//   const [loading, setLoading] = useState(false);
+//   const [error, setError] = useState(null);
+//   const [finalResponse, setFinalResponse] = useState(null);
+
+//   const baseUrl =
+//     process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3000";
+
+//   const toggleForm = () => setShowForm((prev) => !prev);
+
+//   const startProcess = async () => {
+//     setLoading(true);
+//     setError(null);
+//     setFinalResponse(null);
+
+//     try {
+//       if (!formData) {
+//         throw new Error("No form data found. Please fill out the form first!");
+//       }
+
+//       const phone = formData.info[0].phone;
+//       const webId = formData.info[0].web_id;
+//       const name = formData.info[0].name;
+//       const email = formData.info[0].email;
+//       const ivacId = formData.info[0].ivac.id;
+//       const visaType = formData.info[0].visa_type.id;
+//       const amount = formData.info[0].amount;
+
+//       // 1. SEND OTP
+//       {
+//         console.log("Sending OTP...");
+//         const sendOtpUrl = `${baseUrl}/api/v1/send-otp`;
+//         const sendOtpBody = {
+//           action: "sendOtp",
+//           phone,
+//           webId,
+//         };
+
+//         const sendOtpRes = await callApi(sendOtpUrl, sendOtpBody);
+//         if (!sendOtpRes.success) {
+//           throw new Error("Failed to send OTP. Please try again.");
+//         }
+//         console.log("OTP sent successfully:", sendOtpRes);
+//       }
+
+//       // 2. GET OTP
+//       let otpCode = null;
+//       {
+//         const maxAttempts = 5;
+//         let gotOtp = false;
+
+//         for (let i = 0; i < maxAttempts && !gotOtp; i++) {
+//           try {
+//             console.log(`Attempt #${i + 1} to get OTP...`);
+//             const getOtpUrl = `${baseUrl}/api/v1/get-otp?phone=${phone}&webId=${webId}`;
+//             const getOtpRes = await callApi(getOtpUrl, null, "GET");
+
+//             if (getOtpRes.success && getOtpRes.data?.otp) {
+//               otpCode = getOtpRes.data.otp;
+//               gotOtp = true;
+//             }
+//           } catch (err) {
+//             console.error(`Attempt #${i + 1} failed: ${err.message}`);
+//           }
+//           if (!gotOtp)
+//             await new Promise((resolve) => setTimeout(resolve, 2000));
+//         }
+
+//         if (!otpCode) {
+//           throw new Error("Could not retrieve OTP after maximum attempts.");
+//         }
+//         console.log("Got OTP code:", otpCode);
+//       }
+
+//       // 3. VERIFY OTP
+//       {
+//         const maxAttempts = 5;
+//         let verified = false;
+
+//         for (let i = 0; i < maxAttempts && !verified; i++) {
+//           try {
+//             console.log(`Attempt #${i + 1} to verify OTP...`);
+//             const verifyOtpUrl = `${baseUrl}/api/v1/verify-otp`;
+//             const verifyRequestBody = {
+//               action: "verifyOtp",
+//               otp: otpCode,
+//               phone,
+//             };
+
+//             const verifyRes = await callApi(verifyOtpUrl, verifyRequestBody);
+//             if (verifyRes.success) {
+//               verified = true;
+//             }
+//           } catch (err) {
+//             console.error(`Attempt #${i + 1} failed: ${err.message}`);
+//           }
+//           if (!verified)
+//             await new Promise((resolve) => setTimeout(resolve, 2000));
+//         }
+
+//         if (!verified) {
+//           throw new Error("Failed to verify OTP after max attempts.");
+//         }
+//         console.log("OTP verified!");
+//       }
+
+//       // 4. GENERATE SLOT TIME
+//       let selectedDate = null;
+//       {
+//         const aptimeUrl = `${baseUrl}/api/v1/generateSlotTime`;
+//         const aptimeBody = {
+//           action: "generateSlotTime",
+//           amount,
+//           ivac_id: ivacId,
+//           visa_type: visaType,
+//           specific_date: "2025-01-24", // Can also be left dynamic
+//           info: [formData.info[0]], // Add other required fields if necessary
+//         };
+
+//         const aptimeRes = await callApi(aptimeUrl, aptimeBody);
+//         if (
+//           !aptimeRes.success ||
+//           (!aptimeRes.data?.slot_dates &&
+//             aptimeRes.data.slot_times.length === 0)
+//         ) {
+//           throw new Error(
+//             "No slots or dates available for the selected criteria."
+//           );
+//         }
+
+//         // Dynamically handle slot dates if slot times are empty
+//         if (
+//           aptimeRes.data.slot_times.length === 0 &&
+//           aptimeRes.data.slot_dates.length > 0
+//         ) {
+//           selectedDate = aptimeRes.data.slot_dates[0]; // Pick the first available date
+//         } else {
+//           throw new Error("No available dates or times.");
+//         }
+
+//         console.log("Selected appointment date:", selectedDate);
+//       }
+
+//       // 5. PAY NOW
+//       {
+//         const paynowUrl = `${baseUrl}/api/v1/payInvoice`;
+//         const paynowBody = {
+//           action: "payInvoice",
+//           info: [formData.info[0]],
+//           selected_payment: {
+//             name: "Bkash",
+//             slug: "bkash",
+//             grand_total: 824,
+//             link: "https://securepay.sslcommerz.com/gwprocess/v4/image/gw1/bkash.png",
+//           },
+//           selected_slot: {
+//             date: selectedDate,
+//             ivac_id: ivacId,
+//             visa_type: visaType,
+//             time_display: "10:00 - 10:59", // Placeholder as no time is provided
+//           },
+//         };
+
+//         const paynowRes = await callApi(paynowUrl, paynowBody);
+//         if (!paynowRes.success) {
+//           throw new Error("Payment failed.");
+//         }
+//         setFinalResponse(paynowRes);
+//         console.log("Payment successful:", paynowRes);
+//       }
+//     } catch (err) {
+//       setError(err.message);
+//     } finally {
+//       setLoading(false);
+//     }
+//   };
+
+//   return (
+//     <div style={{ padding: "20px", fontFamily: "Arial, sans-serif" }}>
+//       <h1>API Test with Next.js</h1>
+//       {showForm && <FormComponent toggleForm={toggleForm} />}
+//       <button onClick={toggleForm}>Toggle Form</button>
+//       <button
+//         onClick={startProcess}
+//         disabled={loading}
+//         style={{
+//           padding: "10px 20px",
+//           backgroundColor: loading ? "#ccc" : "#28a745",
+//           color: "white",
+//           border: "none",
+//           borderRadius: "5px",
+//           cursor: loading ? "not-allowed" : "pointer",
+//         }}
+//       >
+//         {loading ? "Processing..." : "Start Process"}
+//       </button>
+
+//       {finalResponse && (
+//         <div style={{ marginTop: "20px", color: "green" }}>
+//           <h3>Final Response:</h3>
+//           <pre>{JSON.stringify(finalResponse, null, 2)}</pre>
+//         </div>
+//       )}
+
+//       {error && (
+//         <div style={{ marginTop: "20px", color: "red" }}>
+//           <h3>Error:</h3>
+//           <p>{error}</p>
+//         </div>
+//       )}
+//     </div>
+//   );
+// }
+
+// pages / index.js;
+// import { useState, useContext } from "react";
+// import FormComponent from "../components/form";
+// import { FormContext } from "../context/SendotpFormContext";
+
+// // Import your JSON bodies
+// import verifyOtpBody from "../request-bodies/verify-otp.json";
+// import generateSlotTimeBody from "../request-bodies/appointment-time.json";
+// import payInvoiceBody from "../request-bodies/pay-now.json";
+
+// // If you still want "send-otp" data or any other JSON, import that too
+// import sendOtpBody from "../request-bodies/send-otp.json";
+
+// export default function Home() {
+//   const { formData } = useContext(FormContext);
+//   const [response, setResponse] = useState(null);
+//   const [error, setError] = useState(null);
+
+//   const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
+
+//   // Single "startProcess" that chains all steps
+//   const startProcess = async () => {
+//     setError(null);
+//     setResponse(null);
+
+//     try {
+//       // ---------------------------
+//       // 1) SEND OTP
+//       // ---------------------------
+//       const sendOtpEndpoint = `${baseUrl}/api/v1/send-otp`;
+//       console.log("1) Sending OTP to:", sendOtpEndpoint);
+
+//       const sendOtpRes = await fetch(sendOtpEndpoint, {
+//         method: "POST",
+//         headers: { "Content-Type": "application/json" },
+//         body: JSON.stringify(sendOtpBody),
+//       });
+
+//       if (!sendOtpRes.ok) {
+//         throw new Error(`Send OTP failed! status: ${sendOtpRes.status}`);
+//       }
+
+//       const sendOtpData = await sendOtpRes.json();
+//       console.log("Send OTP response:", sendOtpData);
+
+//       // ---------------------------
+//       // 2) WAIT FOR OTP CODE
+//       // ---------------------------
+//       const getOtpEndpoint = `${baseUrl}/api/v1/get-otp`;
+//       console.log("2) Waiting for OTP code from:", getOtpEndpoint);
+
+//       let otpCode = null;
+//       let retryCount = 0;
+//       const maxRetries = 10; // Number of times to retry
+//       const delay = 2000; // Delay between retries (in ms)
+
+//       while (!otpCode && retryCount < maxRetries) {
+//         const getOtpRes = await fetch(getOtpEndpoint, {
+//           method: "GET",
+//           headers: { "Content-Type": "application/json" },
+//         });
+
+//         if (!getOtpRes.ok) {
+//           console.warn(
+//             `Retrying to fetch OTP... (${retryCount + 1}/${maxRetries})`
+//           );
+//           retryCount++;
+//           await new Promise((resolve) => setTimeout(resolve, delay));
+//           continue;
+//         }
+
+//         const getOtpData = await getOtpRes.json();
+//         otpCode = getOtpData.otp; // Replace 'otp' with the actual key in the response
+//         console.log("OTP fetched successfully:", otpCode);
+//       }
+
+//       if (!otpCode) {
+//         throw new Error("Failed to fetch OTP after multiple retries.");
+//       }
+
+//       // ---------------------------
+//       // 3) VERIFY OTP
+//       // ---------------------------
+//       const verifyOtpEndpoint = `${baseUrl}/api/v1/verify-otp`;
+//       console.log("3) Verifying OTP at:", verifyOtpEndpoint);
+
+//       const verifyBody = JSON.parse(JSON.stringify(verifyOtpBody));
+//       verifyBody.otp = otpCode;
+//       verifyBody.info[0].otp = otpCode;
+
+//       const verifyOtpRes = await fetch(verifyOtpEndpoint, {
+//         method: "POST",
+//         headers: { "Content-Type": "application/json" },
+//         body: JSON.stringify(verifyBody),
+//       });
+
+//       if (!verifyOtpRes.ok) {
+//         throw new Error(`Verify OTP failed! status: ${verifyOtpRes.status}`);
+//       }
+
+//       const verifyOtpData = await verifyOtpRes.json();
+//       console.log("Verify OTP response:", verifyOtpData);
+
+//       // ---------------------------
+//       // 4) GENERATE SLOT TIME
+//       // ---------------------------
+//       const aptimeEndpoint = `${baseUrl}/api/v1/aptime`;
+//       console.log("4) Generating slot time at:", aptimeEndpoint);
+
+//       const aptimeBody = JSON.parse(JSON.stringify(generateSlotTimeBody));
+//       aptimeBody.info[0].otp = otpCode;
+
+//       const aptimeRes = await fetch(aptimeEndpoint, {
+//         method: "POST",
+//         headers: { "Content-Type": "application/json" },
+//         body: JSON.stringify(aptimeBody),
+//       });
+
+//       if (!aptimeRes.ok) {
+//         throw new Error(
+//           `Generate slot time failed! status: ${aptimeRes.status}`
+//         );
+//       }
+
+//       const aptimeData = await aptimeRes.json();
+//       console.log("Appointment Time response:", aptimeData);
+
+//       // ---------------------------
+//       // 5) PAY INVOICE
+//       // ---------------------------
+//       const payEndpoint = `${baseUrl}/api/v1/payInvoice`;
+//       console.log("5) Pay invoice at:", payEndpoint);
+
+//       const payBody = JSON.parse(JSON.stringify(payInvoiceBody));
+//       payBody.info[0].otp = otpCode;
+
+//       const payRes = await fetch(payEndpoint, {
+//         method: "POST",
+//         headers: { "Content-Type": "application/json" },
+//         body: JSON.stringify(payBody),
+//       });
+
+//       if (!payRes.ok) {
+//         throw new Error(`Pay invoice failed! status: ${payRes.status}`);
+//       }
+
+//       const payData = await payRes.json();
+//       console.log("Pay Invoice response:", payData);
+
+//       // ---------------------------
+//       // Collect all responses
+//       // ---------------------------
+//       setResponse({
+//         sendOtpData,
+//         verifyOtpData,
+//         aptimeData,
+//         payData,
+//       });
+//     } catch (err) {
+//       console.error("Error occurred:", err.message);
+//       setError(err.message);
+//     }
+//   };
+
+//   return (
+//     <div style={{ padding: "20px", fontFamily: "Arial, sans-serif" }}>
+//       <h1>API Test Automation</h1>
+
+//       {/* Your existing form, if needed */}
+//       <FormComponent />
+
+//       {/* Single button to start the entire chain */}
+//       <button
+//         onClick={startProcess}
+//         style={{
+//           padding: "10px 20px",
+//           backgroundColor: "purple",
+//           color: "white",
+//           border: "none",
+//           borderRadius: "5px",
+//           cursor: "pointer",
+//         }}
+//       >
+//         Start Automated Process
+//       </button>
+
+//       {/* Show combined responses */}
+//       {response && (
+//         <div style={{ marginTop: "20px", color: "green" }}>
+//           <h3>All Responses:</h3>
+//           <pre>{JSON.stringify(response, null, 2)}</pre>
+//         </div>
+//       )}
+
+//       {/* Show any caught error */}
+//       {error && (
+//         <div style={{ marginTop: "20px", color: "red" }}>
+//           <h3>Error:</h3>
+//           <p>{error}</p>
+//         </div>
+//       )}
+//     </div>
+//   );
+// }
