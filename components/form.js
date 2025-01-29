@@ -18,7 +18,7 @@ import {
 import CloseIcon from "@mui/icons-material/Close";
 import AddIcon from "@mui/icons-material/Add";
 import { DataContext } from "../context/DataContext";
-
+import { centerOptions, visaOptions } from "../utils/optionsConfig";
 const FormComponent = ({ isOpen, onClose }) => {
   const [formData, setFormData] = useState({
     cName: "",
@@ -41,7 +41,14 @@ const FormComponent = ({ isOpen, onClose }) => {
 
   const handleSubmit = async () => {
     console.log("Submitting form data:", formData);
+    // Get selected center and visa details
+    const selectedCenter = centerOptions[formData.cName];
+    const selectedVisa = visaOptions[formData.visaType];
 
+    if (!selectedCenter || !selectedVisa) {
+      alert("Please select valid Center Name and Visa Type.");
+      return;
+    }
     const updatedRequestBody = {
       action: "sendOtp",
       resend: 0,
@@ -56,25 +63,25 @@ const FormComponent = ({ isOpen, onClose }) => {
           amount: "800.00",
           captcha: formData.captcha || "",
           center: {
-            id: 3,
+            id: selectedCenter.centerId,
             c_name: formData.cName,
-            prefix: "R",
+            prefix: selectedCenter.prefix,
             is_delete: 0,
           },
           is_open: true,
           ivac: {
-            id: 2,
-            center_info_id: 3,
-            ivac_name: formData.ivacName,
-            address:
-              "Morium Ali Tower,Holding No-18, Plot No-557, 1ST Floor,Old Bilsimla, Greater Road,Barnali More, 1ST Floor, Ward No-10,Rajshahi.",
-            prefix: "R",
+            id: selectedCenter.ivacId,
+            center_info_id: selectedCenter.centerId,
+            ivac_name: formData.cName,
+            address: selectedCenter.address,
+            prefix: selectedCenter.prefix,
             charge: 3,
             new_visa_fee: 800.0,
           },
           visa_type: {
-            id: 6,
+            id: selectedVisa.visaTypeId,
             type_name: formData.visaType,
+            order: selectedVisa.visaOrder,
             is_active: 1,
           },
           confirm_tos: true,
@@ -165,11 +172,11 @@ const FormComponent = ({ isOpen, onClose }) => {
                 onChange={handleInputChange}
               >
                 <MenuItem value="">Select a High Commission</MenuItem>
-                <MenuItem value="Dhaka">Dhaka</MenuItem>
-                <MenuItem value="Chittagong">Chittagong</MenuItem>
-                <MenuItem value="Rajshahi">Rajshahi</MenuItem>
-                <MenuItem value="Sylhet">Sylhet</MenuItem>
-                <MenuItem value="Khulna">Khulna</MenuItem>
+                {Object.keys(centerOptions).map((key) => (
+                  <MenuItem key={key} value={key}>
+                    {key}
+                  </MenuItem>
+                ))}
               </Select>
             </FormControl>
           </Grid>
@@ -219,13 +226,11 @@ const FormComponent = ({ isOpen, onClose }) => {
                 onChange={handleInputChange}
               >
                 <MenuItem value="">Select a Visa Type</MenuItem>
-                <MenuItem value="TOURIST VISA">TOURIST VISA</MenuItem>
-                <MenuItem value="MEDICAL/MEDICAL ATTENDANT VISA">
-                  MEDICAL/MEDICAL ATTENDANT VISA
-                </MenuItem>
-                <MenuItem value="BUSINESS VISA">BUSINESS VISA</MenuItem>
-                <MenuItem value="ENTRY VISA">ENTRY VISA</MenuItem>
-                <MenuItem value="STUDENT VISA">STUDENT VISA</MenuItem>
+                {Object.keys(visaOptions).map((key) => (
+                  <MenuItem key={key} value={key}>
+                    {key}
+                  </MenuItem>
+                ))}
               </Select>
             </FormControl>
           </Grid>
