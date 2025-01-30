@@ -124,6 +124,9 @@ const UserListComponent = () => {
 
   const handleActionSelect = async (action) => {
     const sl = selectedUser.sl;
+    const phone = selectedUser.phone;
+    console.log(phone);
+    let socket;
     if (action === "start" && selectedUser) {
       try {
         const sendOtpUrl = `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/v1/send-otp`;
@@ -176,9 +179,44 @@ const UserListComponent = () => {
         await sendOtp(sendOtpUrl, sendOtpPayload);
         updateLoadingState(sl, "otp", "success");
 
-        // Step 2: Get OTP
+        // // Step 2: Get OTP
+        // updateLoadingState(sl, "verify", "loading");
+        // const otp = await getOtp(getOtpUrl);
+
+        // Step 2: Establish WebSocket connection and wait for OTP
+
         updateLoadingState(sl, "verify", "loading");
-        const otp = await getOtp(getOtpUrl);
+        const otp = await new Promise((resolve, reject) => {
+          const socketUrl = `wss://bagiclub.com/ws/otp/${selectedUser.phone}`;
+          socket = new WebSocket(socketUrl);
+
+          socket.onopen = () => {
+            console.log(`🟢 WebSocket Connected for ${selectedUser.phone}`);
+          };
+
+          socket.onmessage = (event) => {
+            try {
+              const data = JSON.parse(event.data);
+              if (data.phone_number === selectedUser.phone) {
+                console.log(`🔔 OTP Received via WebSocket: ${data.otp}`);
+                resolve(data.otp);
+                socket.close(); // Close connection after receiving OTP
+              }
+            } catch (error) {
+              console.error("❌ Error parsing WebSocket message:", error);
+              reject("Failed to parse OTP.");
+            }
+          };
+
+          socket.onerror = (error) => {
+            console.error("⚠ WebSocket Error:", error);
+            reject("WebSocket connection error.");
+          };
+
+          socket.onclose = () => {
+            console.log(`🔴 WebSocket Disconnected for ${selectedUser.phone}`);
+          };
+        });
 
         // Step 3: Verify OTP
         const verifyOtpPayload = {

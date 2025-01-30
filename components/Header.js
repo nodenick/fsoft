@@ -50,7 +50,7 @@ function Header({ onLogout }) {
       <h1 style={{ fontSize: "24px" }}>IVAC Payment</h1>
 
       <div style={{ display: "flex", alignItems: "center" }}>
-        {/* <OtpTest /> */}
+        <OtpTest />
         <button
           onClick={openModal}
           style={{ ...buttonStyles, backgroundColor: "#4CAF50" }} // Add Form button style

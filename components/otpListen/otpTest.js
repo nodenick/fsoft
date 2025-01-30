@@ -19,7 +19,7 @@ export default function OtpTest() {
 
   const handleTestOtp = () => {
     if (!mobile.trim()) {
-      setError("Please enter a valid mobile number.");
+      setError("❌ Please enter a valid mobile number.");
       return;
     }
 
@@ -28,9 +28,9 @@ export default function OtpTest() {
     setIsListening(true);
     setConnectionStatus("Connecting...");
 
-    // Get WebSocket URL from .env or fallback to localhost
-    const socketUrl =
-      process.env.NEXT_PUBLIC_WS_URL || `wss://bagiclub.com/ws/otp/${mobile}`;
+    // WebSocket URL (Update this for testing if needed)
+    // const socketUrl = `wss://bagiclub.com/ws/otp/${mobile}`;
+    const socketUrl = `wss://bagiclub.com/ws/otp/${mobile}`; // Use wss:// for SSL
 
     console.log("🔗 Connecting to WebSocket:", socketUrl);
 
@@ -39,7 +39,7 @@ export default function OtpTest() {
       socketRef.current.close();
     }
 
-    // Create new WebSocket connection
+    // Create a new WebSocket connection
     socketRef.current = new WebSocket(socketUrl);
 
     socketRef.current.onopen = () => {
@@ -50,27 +50,32 @@ export default function OtpTest() {
     socketRef.current.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
+        console.log("🔔 OTP Received:", data);
+
         if (data.phone_number === mobile) {
           setOtp(data.otp);
           setIsListening(false);
-          setConnectionStatus("Received OTP");
-          socketRef.current.close();
+          setConnectionStatus("✅ OTP Received");
+          socketRef.current.close(); // Close WebSocket after receiving OTP
         }
       } catch (err) {
-        setError("Failed to parse OTP data.");
+        setError("❌ Failed to parse OTP data.");
+        console.error("Parsing Error:", err);
         setConnectionStatus("Error");
       }
     };
 
     socketRef.current.onerror = (err) => {
       console.error("⚠ WebSocket Error:", err);
-      setError("WebSocket connection error.");
+      setError("❌ WebSocket connection error.");
       setConnectionStatus("Error");
     };
 
-    socketRef.current.onclose = () => {
-      console.log("🔴 WebSocket Disconnected");
-      setConnectionStatus("Disconnected");
+    socketRef.current.onclose = (event) => {
+      console.log("🔴 WebSocket Disconnected (Code:", event.code, ")");
+      if (!otp) {
+        setConnectionStatus("Disconnected - No OTP Received");
+      }
     };
   };
 

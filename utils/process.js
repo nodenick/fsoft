@@ -34,82 +34,82 @@
 //   }
 // };
 
-// export const sendOtp = async (sendOtpUrl, payload) => {
-//   let sendOtpSuccess = false;
-//   const delay = 2000; // 5 seconds delay between retries
+export const sendOtp = async (sendOtpUrl, payload) => {
+  let sendOtpSuccess = false;
+  const delay = 10000; // 5 seconds delay between retries
 
-//   while (!sendOtpSuccess) {
-//     try {
-//       const response = await fetch(sendOtpUrl, {
-//         method: "POST",
-//         headers: {
-//           "Content-Type": "application/json",
-//         },
-//         body: JSON.stringify(payload),
-//       });
-
-//       if (!response.ok) {
-//         console.error(`HTTP Error: ${response.status} ${response.statusText}`);
-//         await new Promise((resolve) => setTimeout(resolve, delay));
-//         continue; // Retry on non-OK HTTP status
-//       }
-
-//       const result = await response.json();
-
-//       if (result && result.data?.status === true) {
-//         sendOtpSuccess = true; // Success, exit loop
-//         console.log("sendOtp successful:", result);
-//         return result; // Return result for further processing
-//       } else {
-//         console.error("sendOtp failed, retrying:", result);
-//         await new Promise((resolve) => setTimeout(resolve, delay)); // Delay before retry
-//       }
-//     } catch (error) {
-//       console.error("Error during sendOtp, retrying:", error);
-//       await new Promise((resolve) => setTimeout(resolve, delay)); // Delay before retry on error
-//     }
-//   }
-// };
-
-export const sendOtp = async (sendOtpUrl, payload, timeout = 3000) => {
-  while (true) {
+  while (!sendOtpSuccess) {
     try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), timeout); // Abort request if too slow
-
       const response = await fetch(sendOtpUrl, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify(payload),
-        signal: controller.signal,
       });
 
-      clearTimeout(timeoutId);
-
       if (!response.ok) {
-        console.error(
-          `HTTP Error: ${response.status} ${response.statusText}. Retrying...`
-        );
-        continue; // Retry immediately
+        console.error(`HTTP Error: ${response.status} ${response.statusText}`);
+        await new Promise((resolve) => setTimeout(resolve, delay));
+        continue; // Retry on non-OK HTTP status
       }
 
       const result = await response.json();
 
       if (result && result.data?.status === true) {
-        console.log("✅ sendOtp successful:", result);
-        return result; // Exit loop on success
-      }
-
-      console.warn("⚠️ sendOtp failed, retrying...", result);
-    } catch (error) {
-      if (error.name === "AbortError") {
-        console.error("⏳ Request timed out. Retrying...");
+        sendOtpSuccess = true; // Success, exit loop
+        console.log("sendOtp successful:", result);
+        return result; // Return result for further processing
       } else {
-        console.error("🚨 Error during sendOtp, retrying...", error);
+        console.error("sendOtp failed, retrying:", result);
+        await new Promise((resolve) => setTimeout(resolve, delay)); // Delay before retry
       }
+    } catch (error) {
+      console.error("Error during sendOtp, retrying:", error);
+      await new Promise((resolve) => setTimeout(resolve, delay)); // Delay before retry on error
     }
   }
 };
+
+// export const sendOtp = async (sendOtpUrl, payload, timeout = 3000) => {
+//   while (true) {
+//     try {
+//       const controller = new AbortController();
+//       const timeoutId = setTimeout(() => controller.abort(), timeout); // Abort request if too slow
+
+//       const response = await fetch(sendOtpUrl, {
+//         method: "POST",
+//         headers: { "Content-Type": "application/json" },
+//         body: JSON.stringify(payload),
+//         signal: controller.signal,
+//       });
+
+//       clearTimeout(timeoutId);
+
+//       if (!response.ok) {
+//         console.error(
+//           `HTTP Error: ${response.status} ${response.statusText}. Retrying...`
+//         );
+//         continue; // Retry immediately
+//       }
+
+//       const result = await response.json();
+
+//       if (result && result.data?.status === true) {
+//         console.log("✅ sendOtp successful:", result);
+//         return result; // Exit loop on success
+//       }
+
+//       console.warn("⚠️ sendOtp failed, retrying...", result);
+//     } catch (error) {
+//       if (error.name === "AbortError") {
+//         console.error("⏳ Request timed out. Retrying...");
+//       } else {
+//         console.error("🚨 Error during sendOtp, retrying...", error);
+//       }
+//     }
+//   }
+// };
 
 // Get OTP
 export const getOtp = async (getOtpUrl) => {
