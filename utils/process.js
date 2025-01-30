@@ -71,7 +71,7 @@
 //   }
 // };
 
-export const sendOtp = async (sendOtpUrl, payload, timeout = 5000) => {
+export const sendOtp = async (sendOtpUrl, payload, timeout = 9000) => {
   let delay = 100; // Initial delay
 
   while (true) {
