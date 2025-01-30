@@ -71,7 +71,7 @@
 //   }
 // };
 
-export const sendOtp = async (sendOtpUrl, payload, timeout = 3000) => {
+export const sendOtp = async (sendOtpUrl, payload, timeout = 5000) => {
   let delay = 100; // Initial delay
 
   while (true) {
@@ -183,7 +183,7 @@ export const getOtp = async (getOtpUrl) => {
 //   }
 // };
 
-export const verifyOtp = async (verifyOtpUrl, payload, timeout = 2000) => {
+export const verifyOtp = async (verifyOtpUrl, payload, timeout = 3000) => {
   while (true) {
     try {
       const controller = new AbortController();
