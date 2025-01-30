@@ -29,8 +29,8 @@ export default function OtpTest() {
     setConnectionStatus("Connecting...");
 
     // WebSocket URL (Update this for testing if needed)
-    // const socketUrl = `wss://bagiclub.com/ws/otp/${mobile}`;
-    const socketUrl = `wss://bagiclub.com/ws/otp/${mobile}`; // Use wss:// for SSL
+    // const socketUrl = `ws://127.0.0.1:8000/ws/otp/${mobile}`;
+    const socketUrl = `wss://bagiclub.com/ws/otp/${mobile}`;
 
     console.log("🔗 Connecting to WebSocket:", socketUrl);
 
