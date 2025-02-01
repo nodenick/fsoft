@@ -154,9 +154,13 @@ const UserListComponent = () => {
 
         // 2. Setup the WebSocket to listen for the OTP.
         const otpPromise = new Promise((resolve, reject) => {
+          // const socket = new WebSocket(
+          //   // You can switch between production and local endpoints as needed.
+          //   `ws://127.0.0.1:8000/ws/otp/${selectedUser.phone}`
+          // );
           const socket = new WebSocket(
             // You can switch between production and local endpoints as needed.
-            `ws://127.0.0.1:8000/ws/otp/${selectedUser.phone}`
+            `wss://bagiclub.com/ws/otp/${selectedUser.phone}`
           );
 
           socket.onopen = () => console.log("WebSocket connected");
