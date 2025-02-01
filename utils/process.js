@@ -71,13 +71,23 @@
 //   }
 // };
 
-export const sendOtp = async (sendOtpUrl, payload, timeout = 9000) => {
+export const sendOtp = async (
+  sendOtpUrl,
+  payload,
+  abortController,
+  timeout = 9000
+) => {
   let delay = 100; // Initial delay
 
   while (true) {
     try {
+      if (abortController.signal.aborted) {
+        console.warn("⚠️ sendOtp aborted as OTP was received via WebSocket.");
+        return null; // Stop execution if aborted
+      }
+
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), timeout); // Abort request if too slow
+      const timeoutId = setTimeout(() => controller.abort(), timeout);
 
       const response = await fetch(sendOtpUrl, {
         method: "POST",
@@ -90,16 +100,16 @@ export const sendOtp = async (sendOtpUrl, payload, timeout = 9000) => {
 
       if (!response.ok) {
         console.error(
-          `HTTP Error: ${response.status} ${response.statusText}. Retrying in ${delay}ms...`
+          `❌ HTTP Error: ${response.status} - Retrying in ${delay}ms...`
         );
         await new Promise((resolve) => setTimeout(resolve, delay));
-        delay = Math.min(delay * 2, 1000); // Double delay, max 1000ms
-        continue; // Retry request
+        delay = Math.min(delay * 2, 1000);
+        continue;
       }
 
       const result = await response.json();
 
-      if (result && result.data?.status === true) {
+      if (result?.data?.status) {
         console.log("✅ sendOtp successful:", result);
         return result; // Exit loop on success
       }
@@ -107,17 +117,15 @@ export const sendOtp = async (sendOtpUrl, payload, timeout = 9000) => {
       console.warn(`⚠️ sendOtp failed, retrying in ${delay}ms...`, result);
     } catch (error) {
       if (error.name === "AbortError") {
-        console.error(`⏳ Request timed out. Retrying in ${delay}ms...`);
+        console.warn("⚠️ sendOtp request aborted.");
+        return null; // Stop execution if aborted
       } else {
-        console.error(
-          `🚨 Error during sendOtp, retrying in ${delay}ms...`,
-          error
-        );
+        console.error("🚨 sendOtp Error:", error);
       }
     }
 
     await new Promise((resolve) => setTimeout(resolve, delay));
-    delay = delay < 1000 ? delay * 2 : 100; // Reset delay after reaching 1000ms
+    delay = delay < 1000 ? delay * 2 : 100;
   }
 };
 
@@ -258,43 +266,6 @@ export const verifyOtp = async (verifyOtpUrl, payload, timeout = 3000) => {
 // };
 
 // Generate Slot Time
-export const getAppointmentTime = async (aptimeUrl, payload) => {
-  let appointmentSuccess = false;
-  let slotDetails = null;
-
-  while (!appointmentSuccess) {
-    try {
-      const response = await fetch(aptimeUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-      });
-
-      const result = await response.json();
-
-      if (
-        response.ok &&
-        result.status === "OK" &&
-        result.slot_times?.length > 0
-      ) {
-        appointmentSuccess = true; // Exit the loop when successful
-        slotDetails = {
-          slotDates: result.slot_dates,
-          slotTimes: result.slot_times,
-        };
-        console.log("getAppointmentTime successful:", result);
-        return slotDetails; // Return slot details for further processing
-      } else {
-        console.log("getAppointmentTime failed, retrying:", result);
-      }
-    } catch (error) {
-      console.error("Error during getAppointmentTime, retrying:", error);
-    }
-  }
-};
-
 // export const getAppointmentTime = async (aptimeUrl, payload) => {
 //   let appointmentSuccess = false;
 //   let slotDetails = null;
@@ -329,11 +300,58 @@ export const getAppointmentTime = async (aptimeUrl, payload) => {
 //     } catch (error) {
 //       console.error("Error during getAppointmentTime, retrying:", error);
 //     }
-
-//     // Add a 2-second delay before retrying
-//     await new Promise((resolve) => setTimeout(resolve, 1000));
 //   }
 // };
+
+export const getAppointmentTime = async (aptimeUrl, payload) => {
+  let appointmentSuccess = false;
+  let slotDetails = null;
+  let delay = 100; // Start with 100ms
+  const maxWaitTime = 7000; // ⏳ 7 seconds timeout
+
+  while (!appointmentSuccess) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), maxWaitTime); // ⏳ Cancel request if it takes more than 7 seconds
+
+      const response = await fetch(aptimeUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+      const result = await response.json();
+
+      if (
+        response.ok &&
+        result.status === "OK" &&
+        result.slot_times?.length > 0
+      ) {
+        appointmentSuccess = true; // ✅ Exit loop when successful
+        slotDetails = {
+          slotDates: result.slot_dates,
+          slotTimes: result.slot_times,
+        };
+        console.log("✅ getAppointmentTime successful:", result);
+        return slotDetails; // ✅ Return slot details for further processing
+      } else {
+        console.warn(`⚠️ No slots found. Retrying after delay...`);
+      }
+    } catch (error) {
+      if (error.name === "AbortError") {
+        console.error("⏳ Request timed out (7s). Retrying...");
+      } else {
+        console.error("🚨 Error during getAppointmentTime, retrying:", error);
+      }
+    }
+
+    // Progressive delay from 100ms → 200ms → 400ms → ... → max 1000ms
+    await new Promise((resolve) => setTimeout(resolve, delay));
+    delay = Math.min(delay * 2, 1000); // ⏳ Double the delay, max at 1000ms
+  }
+};
 
 export const getHashParamFromUser = () => {
   return new Promise((resolve) => {
@@ -344,29 +362,6 @@ export const getHashParamFromUser = () => {
       alert("Hash_param is required for the next step.");
     }
   });
-};
-
-export const updateHashParam = async (updateHashUrl, payload) => {
-  try {
-    const response = await fetch(updateHashUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(payload),
-    });
-
-    const result = await response.json();
-
-    if (response.ok) {
-      console.log("updateHashParam successful:", result);
-      return result;
-    } else {
-      console.error("updateHashParam failed:", result);
-    }
-  } catch (error) {
-    console.error("Error during updateHashParam:", error);
-  }
 };
 
 export const payInvoice = async (payUrl, payload) => {
@@ -392,7 +387,7 @@ export const payInvoice = async (payUrl, payload) => {
       console.error("Error during payInvoice, retrying...", error);
     }
 
-    // Add a 10-second delay before retrying
+    // Add a 1-second delay before retrying
     await new Promise((resolve) => setTimeout(resolve, 1000));
   }
 };

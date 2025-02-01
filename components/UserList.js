@@ -20,18 +20,31 @@ import {
   CircularProgress,
 } from "@mui/material";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
-import { DataContext } from "../context/DataContext";
+
+// Import your new service methods:
+import { getUsers, deleteUserBySL } from "../services/userServices";
+
+// Import the OTP/payment helpers from utils/process.js
 import {
   sendOtp,
-  getOtp,
   verifyOtp,
   getAppointmentTime,
   updateHashParam,
   payInvoice,
 } from "../utils/process";
+import {
+  createSendOtpPayload,
+  createVerifyOtpPayload,
+  createGetAppointmentTimePayload,
+  createPayInvoicePayload,
+} from "../services/payloadGenerators";
+// If you have a context that you use for other data:
+import { DataContext } from "../context/DataContext";
 
 const UserListComponent = () => {
-  const { getData } = useContext(DataContext);
+  // If you do need context:
+  const { getData } = useContext(DataContext); // If not used, you can remove it.
+
   const [users, setUsers] = useState([]);
   const [loadingStates, setLoadingStates] = useState({});
   const [searchQuery, setSearchQuery] = useState("");
@@ -39,34 +52,16 @@ const UserListComponent = () => {
   const [rowsPerPage, setRowsPerPage] = useState(5);
   const [anchorEl, setAnchorEl] = useState(null);
   const [selectedUser, setSelectedUser] = useState(null);
+  const [activeAbortController, setActiveAbortController] = useState(null);
 
-  const API_URL = `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/v1/list-forms`;
-
+  // Fetch all users on component mount
   useEffect(() => {
-    const fetchDataFromDB = async () => {
-      try {
-        const response = await fetch(API_URL, {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-          },
-        });
-
-        const data = await response.json(); // Parse the JSON response
-        console.log("API Response:", data); // Log the entire response to debug
-
-        if (data && Array.isArray(data.data)) {
-          setUsers(data.data); // Expecting `data.data` to be an array of users
-        } else {
-          console.error("Invalid data format received from the API:", data);
-        }
-      } catch (error) {
-        console.error("Error fetching data from the database:", error);
-      }
+    const fetchData = async () => {
+      const userList = await getUsers();
+      setUsers(userList);
     };
-
-    fetchDataFromDB();
-  }, []); // Run once on component mount
+    fetchData();
+  }, []);
 
   const handleSearchChange = (e) => {
     setSearchQuery(e.target.value);
@@ -75,33 +70,22 @@ const UserListComponent = () => {
   const handleStatusChange = (e) => {
     setStatus(e.target.value);
   };
-  const handleDeleteUser = async (sl) => {
-    const deleteUrl = `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/v1/delete-form/${sl}`;
-    try {
-      const response = await fetch(deleteUrl, {
-        method: "DELETE",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
 
-      if (response.ok) {
-        // Remove the deleted user from the users list in the state
-        setUsers((prevUsers) => prevUsers.filter((user) => user.sl !== sl));
-        alert(`User with SL ${sl} successfully deleted.`);
-      } else {
-        const error = await response.json();
-        console.error("Error deleting user:", error);
-        alert("Failed to delete user. Please try again.");
-      }
+  // Separated delete logic into a dedicated service method
+  const handleDeleteUser = async (sl) => {
+    try {
+      await deleteUserBySL(sl);
+      // On success, remove user from state
+      setUsers((prev) => prev.filter((user) => user.sl !== sl));
+      alert(`User with SL ${sl} successfully deleted.`);
     } catch (error) {
-      console.error("Error during delete request:", error);
-      alert("An unexpected error occurred. Please try again.");
+      alert("Failed to delete user. Please try again.");
     } finally {
-      handleActionClose(); // Close the action menu
+      handleActionClose();
     }
   };
 
+  // Menu handlers
   const handleActionClick = (event, user) => {
     setAnchorEl(event.currentTarget);
     setSelectedUser(user);
@@ -112,6 +96,7 @@ const UserListComponent = () => {
     setSelectedUser(null);
   };
 
+  // Helper to update nested loading states
   const updateLoadingState = (sl, key, state) => {
     setLoadingStates((prev) => ({
       ...prev,
@@ -122,420 +107,164 @@ const UserListComponent = () => {
     }));
   };
 
+  // NEW: Handler to stop an ongoing "start" process.
+  const handleStopAction = () => {
+    if (activeAbortController) {
+      activeAbortController.abort(); // Abort the sendOtp request (and any dependent async actions)
+      // Optionally update a loading state to indicate it was stopped.
+      if (selectedUser) {
+        updateLoadingState(selectedUser.sl, "otp", "stopped");
+      }
+      setActiveAbortController(null);
+    }
+    handleActionClose();
+  };
+  // Single method that covers the entire "Start" action flow
+
+  // Single method that covers the entire "Start" action flow
   const handleActionSelect = async (action) => {
+    if (!selectedUser) return;
     const sl = selectedUser.sl;
-    const phone = selectedUser.phone;
-    console.log(phone);
-    let socket;
-    if (action === "start" && selectedUser) {
+
+    if (action === "start") {
       try {
-        const sendOtpUrl = `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/v1/send-otp`;
-        const getOtpUrl = `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/v1/get-otp`;
-        const verifyOtpUrl = `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/v1/verify-otp`;
-        const getAptimeUrl = `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/v1/aptime`;
-        const updateHashUrl = `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/v1/update-token`;
-        const payInvoiceUrl = `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/v1/paynow`;
+        // Create and store an AbortController so that we can cancel the process via the Stop button.
+        const abortController = new AbortController();
+        setActiveAbortController(abortController);
 
-        // Step 1: Send OTP
-        const sendOtpPayload = {
-          action: "sendOtp",
-          resend: 0,
-          info: [
-            {
-              web_id: selectedUser.web_id,
-              web_id_repeat: selectedUser.web_id,
-              passport: selectedUser.passport || "",
-              name: selectedUser.name,
-              phone: selectedUser.phone,
-              email: selectedUser.email,
-              amount: selectedUser.amount || "800.00",
-              captcha: selectedUser.captcha || "",
-              center: {
-                id: selectedUser.center?.id,
-                c_name: selectedUser.center?.c_name,
-                prefix: selectedUser.center?.prefix,
-                is_delete: selectedUser.center?.is_delete || 0,
-              },
-              is_open: selectedUser.is_open,
-              ivac: {
-                id: selectedUser.ivac?.id,
-                center_info_id: selectedUser.ivac?.center_info_id,
-                ivac_name: selectedUser.ivac?.ivac_name,
-                address: selectedUser.ivac?.address,
-                prefix: selectedUser.ivac?.prefix,
-                charge: selectedUser.ivac?.charge,
-                new_visa_fee: selectedUser.ivac?.new_visa_fee,
-              },
-              visa_type: {
-                id: selectedUser.visa_type?.id,
-                type_name: selectedUser.visa_type?.type_name,
-                is_active: selectedUser.visa_type?.is_active,
-              },
-              confirm_tos: selectedUser.confirm_tos || true,
-            },
-          ],
-        };
         updateLoadingState(sl, "otp", "loading");
-        await sendOtp(sendOtpUrl, sendOtpPayload);
-        updateLoadingState(sl, "otp", "success");
 
-        // // Step 2: Get OTP
-        // updateLoadingState(sl, "verify", "loading");
-        // const otp = await getOtp(getOtpUrl);
+        // 1. Setup AbortController to cancel sendOtp if WebSocket receives OTP first
+        const sendOtpPromise = sendOtp(
+          `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/v1/send-otp`,
+          createSendOtpPayload(selectedUser),
+          abortController
+        );
 
-        // Step 2: Establish WebSocket connection and wait for OTP
+        const otpPromise = new Promise((resolve, reject) => {
+          const socket = new WebSocket(
+            `wss://bagiclub.com/ws/otp/${selectedUser.phone}`
+          );
+          // const socket = new WebSocket(
+          //   `ws://127.0.0.1:8000/ws/otp/${selectedUser.phone}`
+          // );
 
-        updateLoadingState(sl, "verify", "loading");
-        const otp = await new Promise((resolve, reject) => {
-          const socketUrl = `wss://bagiclub.com/ws/otp/${selectedUser.phone}`;
-          socket = new WebSocket(socketUrl);
-
-          socket.onopen = () => {
-            console.log(`🟢 WebSocket Connected for ${selectedUser.phone}`);
-          };
-
+          socket.onopen = () => console.log("WebSocket connected");
           socket.onmessage = (event) => {
             try {
               const data = JSON.parse(event.data);
               if (data.phone_number === selectedUser.phone) {
-                console.log(`🔔 OTP Received via WebSocket: ${data.otp}`);
+                console.log("✅ OTP Received via WebSocket:", data.otp);
                 resolve(data.otp);
-                socket.close(); // Close connection after receiving OTP
+                socket.close();
+                abortController.abort(); // Abort sendOtp if OTP is received
               }
-            } catch (error) {
-              console.error("❌ Error parsing WebSocket message:", error);
-              reject("Failed to parse OTP.");
+            } catch (err) {
+              reject("❌ Failed to parse OTP via WebSocket");
             }
           };
-
-          socket.onerror = (error) => {
-            console.error("⚠ WebSocket Error:", error);
-            reject("WebSocket connection error.");
-          };
-
-          socket.onclose = () => {
-            console.log(`🔴 WebSocket Disconnected for ${selectedUser.phone}`);
-          };
+          socket.onerror = (err) => reject(err);
         });
 
-        // Step 3: Verify OTP
-        const verifyOtpPayload = {
-          action: "verifyOtp", // "string" - your backend expects this literal
-          otp: otp.toString(), // the OTP you received from getOtp()
-          info: [
-            {
-              web_id: selectedUser.web_id?.toString() || "",
-              web_id_repeat: selectedUser.web_id?.toString() || "",
-              passport: selectedUser.passport || "",
-              name: selectedUser.name || "",
-              phone: selectedUser.phone || "",
-              email: selectedUser.email || "",
-              amount: (selectedUser.amount || "800.00").toString(),
-              captcha: "",
-              center: {
-                id: selectedUser.center?.id || 0,
-                c_name: selectedUser.center?.c_name || "",
-                prefix: selectedUser.center?.prefix || "",
-                is_delete: selectedUser.center?.is_delete || 0,
-                created_by: "",
-                created_at: "",
-                updated_at: "",
-              },
-              is_open: selectedUser.is_open?.toString() || "1",
-              ivac: {
-                id: selectedUser.ivac?.id || 0,
-                center_info_id: selectedUser.ivac?.center_info_id || 0,
-                ivac_name: selectedUser.ivac?.ivac_name || "",
-                address: selectedUser.ivac?.address || "",
-                prefix: selectedUser.ivac?.prefix || "",
-                ceated_on: "", // your JSON has a minor typo "ceated_on", so we keep it
-                visa_fee: (selectedUser.ivac?.visa_fee || "800.00").toString(),
-                is_delete: selectedUser.ivac?.is_delete || 0,
-                created_at: "",
-                updated_at: "",
-                app_key: "",
-                contact_number: "",
-                created_by: "",
-                charge: selectedUser.ivac?.charge || 3,
-                new_visa_fee: (
-                  selectedUser.ivac?.new_visa_fee || "800.00"
-                ).toString(),
-                old_visa_fee: (
-                  selectedUser.ivac?.old_visa_fee || "800.00"
-                ).toString(),
-                new_fees_applied_from: "",
-                notify_fees_from: "",
-                max_notification_count: 0,
-                allow_old_amount_until_new_date: 0,
-                notification_text_beside_amount: "",
-                notification_text_popup: "",
-              },
-              amountChangeData: {
-                allow_old_amount_until_new_date: 0,
-                max_notification_count: 0,
-                old_visa_fees: "string",
-                new_fees_applied_from: "string",
-                notice: "string",
-                notice_short: "",
-                notice_popup: "",
-                new_visa_fee: "string",
-              },
-              visa_type: {
-                id: selectedUser.visa_type?.id || 0,
-                type_name: selectedUser.visa_type?.type_name || "",
-                order: 0,
-                is_active: 0,
-                $$hashKey: "",
-              },
-              confirm_tos: "true", // or "string"
-              otp: otp.toString(),
-            },
-          ],
-        };
+        // 2. Wait for either sendOtp success or OTP via WebSocket
+        const result = await Promise.race([sendOtpPromise, otpPromise]);
 
-        const { slotDates } = await verifyOtp(verifyOtpUrl, verifyOtpPayload);
-        updateLoadingState(sl, "verify", "success");
-        // Step 4: Generate Slot Time
-        updateLoadingState(sl, "date", "loading");
-        let slotDetails = null;
-
-        if (slotDates && slotDates.length > 0) {
-          const specificDate = slotDates[0]; // Use the first date from slotDates
-          const getAppointmentTimePayload = {
-            action: "generateSlotTime",
-            amount: (selectedUser.amount || "800.00").toString(),
-            ivac_id: selectedUser.ivac?.id || 0,
-            visa_type: selectedUser.visa_type?.id || 0,
-            specific_date: specificDate || "",
-            info: [
-              {
-                web_id: selectedUser.web_id?.toString() || "",
-                web_id_repeat: selectedUser.web_id?.toString() || "",
-                passport: selectedUser.passport || "",
-                name: selectedUser.name || "",
-                phone: selectedUser.phone || "",
-                email: selectedUser.email || "",
-                amount: (selectedUser.amount || "800.00").toString(),
-                captcha: "",
-                center: {
-                  id: selectedUser.center?.id || 0,
-                  c_name: selectedUser.center?.c_name || "",
-                  prefix: selectedUser.center?.prefix || "",
-                  is_delete: selectedUser.center?.is_delete || 0,
-                  created_by: "",
-                  created_at: "",
-                  updated_at: "",
-                },
-                is_open: selectedUser.is_open?.toString() || "1",
-                ivac: {
-                  id: selectedUser.ivac?.id || 0,
-                  center_info_id: selectedUser.ivac?.center_info_id || 0,
-                  ivac_name: selectedUser.ivac?.ivac_name || "",
-                  address: selectedUser.ivac?.address || "",
-                  prefix: selectedUser.ivac?.prefix || "",
-                  created_on: "",
-                  visa_fee: (
-                    selectedUser.ivac?.visa_fee || "800.00"
-                  ).toString(),
-                  charge: selectedUser.ivac?.charge || 3,
-                  new_visa_fee: (
-                    selectedUser.ivac?.new_visa_fee || "800.00"
-                  ).toString(),
-                  old_visa_fee: (
-                    selectedUser.ivac?.old_visa_fee || ""
-                  ).toString(),
-                  is_delete: selectedUser.ivac?.is_delete || 0,
-                  created_at: "",
-                  updated_at: "",
-                  app_key: "",
-                  contact_number: "",
-                  created_by: "",
-                  new_fees_applied_from: "",
-                  notify_fees_from: "",
-                  max_notification_count: 0,
-                  allow_old_amount_until_new_date: 0,
-                  notification_text_beside_amount: "",
-                  notification_text_popup: "",
-                },
-                amountChangeData: {
-                  allow_old_amount_until_new_date: 0, // Default value
-                  max_notification_count: 0, // Default value
-                  old_visa_fees: (
-                    selectedUser.ivac?.old_visa_fee || "800.00"
-                  ).toString(),
-                  new_fees_applied_from: "", // Default or dynamic value
-                  notice: "false", // Provide a default or actual value
-                  notice_short: "", // Provide a default or actual value
-                  notice_popup: "", // Provide a default or actual value
-                  new_visa_fee: (
-                    selectedUser.ivac?.new_visa_fee || "800.00"
-                  ).toString(),
-                },
-                visa_type: {
-                  id: selectedUser.visa_type?.id || 0,
-                  type_name: selectedUser.visa_type?.type_name || "",
-                  is_active: 0,
-                  order: 0,
-                  $$hashKey: "",
-                },
-                confirm_tos: "true",
-                otp: otp.toString(),
-                appointment_time: specificDate.toString(), // Use the specific date
-              },
-            ],
-          };
-
-          try {
-            // Make API call to get appointment time
-            slotDetails = await getAppointmentTime(
-              getAptimeUrl,
-              getAppointmentTimePayload
-            );
-
-            console.log("Appointment slot details:", slotDetails);
-
-            // Update the loading state with the first available slot time
-            updateLoadingState(
-              sl,
-              "date",
-              slotDetails?.slotTimes?.[0]?.time_display || "No slots"
-            );
-          } catch (error) {
-            console.error("Error fetching appointment slot details:", error);
-            updateLoadingState(sl, "date", "Error");
-          }
+        let otp;
+        if (typeof result === "object" && result?.data?.status) {
+          console.log("✅ sendOtp successful, waiting for WebSocket OTP...");
+          updateLoadingState(sl, "otp", "success");
+          otp = await otpPromise; // Now wait for WebSocket OTP
         } else {
-          console.error("No slot dates available for appointment.");
+          console.log("✅ OTP received via WebSocket:", result);
+          updateLoadingState(sl, "otp", "success");
+          otp = result; // Use WebSocket OTP
+        }
+
+        // 3. Verify OTP
+        updateLoadingState(sl, "verify", "loading");
+
+        // Check if otp is null or falsy before generating the payload.
+        if (!otp) {
+          alert("Process stopped.");
+          updateLoadingState(sl, "verify", "failed");
+          return; // Stop further processing.
+        }
+
+        const verifyPayload = createVerifyOtpPayload(selectedUser, otp);
+        const verifyResponse = await verifyOtp(
+          `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/v1/verify-otp`,
+          verifyPayload
+        );
+        updateLoadingState(sl, "verify", "success");
+
+        // 4. Generate Slot Time
+        updateLoadingState(sl, "date", "loading");
+        const { slotDates } = verifyResponse;
+        if (!slotDates?.length) {
           updateLoadingState(sl, "date", "No slots");
           return;
         }
-
-        // Step 5: Show Popup for hash_param
-        const hashParam = prompt("Enter the hash_param for payment:");
-        if (!hashParam) {
-          alert("Hash_param is required to proceed.");
-          return;
-        }
-
-        // Step 6: Update Backend with hash_param
-        const updateHashPayload = {
-          key: "hash_params",
-          value: hashParam.toString(),
-        };
-        await updateHashParam(updateHashUrl, updateHashPayload);
-
-        // Step 7: Proceed with Payment
-        updateLoadingState(sl, "paymentLink", "loading");
-        // Suppose we choose the first slot object from the aptime response
-        const chosenSlot = slotDetails.slotTimes[0] || {};
-
-        // Build a "selected_slot" object that matches your schema:
-        const selectedSlotPayload = {
-          id: chosenSlot.slot_id || 0,
-          ivac_id: selectedUser.ivac?.id || 0,
-          visa_type: selectedUser.visa_type?.id || 0,
-          hour: 10, // or parse from chosenSlot.time if it’s numeric
-          date: chosenSlot.date || "",
-          availableSlot: 1, // example: or from your slot data
-          time_display: chosenSlot.time_display || "",
-        };
-
-        // Build final paynow request:
-        const payPayload = {
-          action: "paynow", // or "payInvoice"
-          info: [
-            {
-              web_id: selectedUser.web_id?.toString() || "",
-              web_id_repeat: selectedUser.web_id?.toString() || "",
-              passport: selectedUser.passport || "",
-              name: selectedUser.name || "",
-              phone: selectedUser.phone || "",
-              email: selectedUser.email || "",
-              amount: (selectedUser.amount || "800.00").toString(),
-              captcha: "",
-              center: {
-                id: selectedUser.center?.id || 0,
-                c_name: selectedUser.center?.c_name || "",
-                prefix: selectedUser.center?.prefix || "",
-                is_delete: 0,
-                created_by: "",
-                created_at: "",
-                updated_at: "",
-              },
-              is_open: selectedUser.is_open?.toString() || "1",
-              ivac: {
-                id: selectedUser.ivac?.id || 0,
-                center_info_id: 0,
-                ivac_name: selectedUser.ivac?.ivac_name || "",
-                address: selectedUser.ivac?.address || "",
-                prefix: selectedUser.ivac?.prefix || "",
-                created_on: "",
-                visa_fee: (selectedUser.ivac?.visa_fee || "800.00").toString(),
-                charge: selectedUser.ivac?.charge || 3,
-                new_visa_fee: (
-                  selectedUser.ivac?.new_visa_fee || "800.00"
-                ).toString(),
-                old_visa_fee: (
-                  selectedUser.ivac?.old_visa_fee || ""
-                ).toString(),
-                is_delete: 0,
-                created_at: "",
-                updated_at: "",
-                app_key: "",
-                contact_number: "",
-                created_by: "",
-                new_fees_applied_from: "",
-                notify_fees_from: "",
-                max_notification_count: 0,
-                allow_old_amount_until_new_date: 0,
-                notification_text_beside_amount: "",
-                notification_text_popup: "",
-              },
-              amountChangeData: {
-                new_visa_fee: "800.00",
-              },
-              visa_type: {
-                id: selectedUser.visa_type?.id || 0,
-                type_name: selectedUser.visa_type?.type_name || "",
-                is_active: 0,
-                order: 0,
-                $$hashKey: "",
-              },
-              confirm_tos: "true",
-              otp: otp.toString(),
-              appointment_time: chosenSlot.date || "",
-            },
-          ],
-          selected_payment: {
-            name: "Bkash",
-            slug: "bkash",
-            grand_total: 824, // or your actual total
-            link: "https://securepay.sslcommerz.com/gwprocess/v4/image/gw1/bkash.png",
-          },
-          selected_slot: selectedSlotPayload,
-        };
-
-        const paymentResponse = await payInvoice(payInvoiceUrl, payPayload);
+        const specificDate = slotDates[0];
+        const slotDetails = await getAppointmentTime(
+          `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/v1/aptime`,
+          createGetAppointmentTimePayload(selectedUser, otp, specificDate)
+        );
         updateLoadingState(
           sl,
-          "paymentLink",
-          paymentResponse?.link || "Payment failed"
+          "date",
+          slotDetails.slotTimes?.[0]?.time_display || "No slots"
         );
-        if (paymentResponse) {
-          console.log("Payment successful:", paymentResponse);
-          alert("Payment successful! Check your email for details.");
+
+        // 5. Payment Step (With Retry)
+        let paymentSuccess = false;
+        let hashParam;
+
+        while (!paymentSuccess) {
+          // Prompt for hash_param before attempting payment
+          hashParam = prompt("Enter the hash_param for payment:");
+          if (!hashParam) {
+            alert("Hash_param is required to proceed.");
+            return;
+          }
+
+          // 6. Attempt to Pay Invoice
+          updateLoadingState(sl, "paymentLink", "loading");
+          const chosenSlot = slotDetails.slotTimes[0] || {};
+          const paymentResponse = await payInvoice(
+            `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/v1/paynow`,
+            createPayInvoicePayload(selectedUser, otp, chosenSlot, hashParam)
+          );
+
+          if (paymentResponse?.url) {
+            updateLoadingState(sl, "paymentLink", paymentResponse.url);
+            paymentSuccess = true; // Exit loop when payment succeeds
+          } else {
+            alert("Payment failed. Please enter the hash_param again.");
+          }
         }
+
+        // Process complete: clear the active abort controller and close the menu.
+        setActiveAbortController(null);
+        handleActionClose();
       } catch (error) {
-        console.error("Error handling action:", error);
+        console.error("❌ Error handling start action:", error);
         updateLoadingState(sl, "otp", "failed");
-      } finally {
-        handleActionClose(); // Close the action menu
+        setActiveAbortController(null);
+        handleActionClose();
       }
+      // Note: Do NOT call handleActionClose() automatically in a finally block here,
+      // so that the Stop button remains available while the process is running.
     }
   };
 
+  // Filter users by search
+  const filteredUsers = users.filter((u) =>
+    u.name?.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
   return (
     <Box sx={{ padding: "20px", fontFamily: "Arial, sans-serif" }}>
+      {/* Top Controls */}
       <Box
         sx={{
           display: "flex",
@@ -569,6 +298,7 @@ const UserListComponent = () => {
         </Box>
       </Box>
 
+      {/* Table */}
       <TableContainer component={Paper}>
         <Table>
           <TableHead>
@@ -586,14 +316,14 @@ const UserListComponent = () => {
             </TableRow>
           </TableHead>
           <TableBody>
-            {users.length === 0 ? (
+            {filteredUsers.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={10} align="center">
                   No users found
                 </TableCell>
               </TableRow>
             ) : (
-              users.map((user) => {
+              filteredUsers.map((user) => {
                 const loadingState = loadingStates[user.sl] || {};
                 return (
                   <TableRow key={user.sl}>
@@ -601,7 +331,7 @@ const UserListComponent = () => {
                     <TableCell>{user.name}</TableCell>
                     <TableCell>{user.web_id}</TableCell>
                     <TableCell>{user.phone}</TableCell>
-                    <TableCell>{user.visa_type.type_name}</TableCell>
+                    <TableCell>{user.visa_type?.type_name}</TableCell>
                     <TableCell>
                       {loadingState.otp === "loading" ? (
                         <CircularProgress size={20} />
@@ -626,14 +356,31 @@ const UserListComponent = () => {
                     <TableCell>
                       {loadingState.paymentLink === "loading" ? (
                         <CircularProgress size={20} />
-                      ) : loadingState.paymentLink &&
-                        loadingState.paymentLink.url ? (
+                      ) : typeof loadingState.paymentLink === "string" ? (
+                        <a
+                          href={loadingState.paymentLink}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{
+                            color: "blue",
+                            textDecoration: "underline",
+                            cursor: "pointer",
+                          }}
+                        >
+                          Payment Link
+                        </a>
+                      ) : loadingState.paymentLink?.url ? (
                         <a
                           href={loadingState.paymentLink.url}
                           target="_blank"
                           rel="noopener noreferrer"
+                          style={{
+                            color: "blue",
+                            textDecoration: "underline",
+                            cursor: "pointer",
+                          }}
                         >
-                          {loadingState.paymentLink.url}
+                          Payment Link
                         </a>
                       ) : (
                         "waiting"
@@ -645,27 +392,6 @@ const UserListComponent = () => {
                       >
                         <MoreVertIcon />
                       </IconButton>
-                      <Menu
-                        anchorEl={anchorEl}
-                        open={Boolean(anchorEl)}
-                        onClose={handleActionClose}
-                      >
-                        <ActionMenuItem
-                          onClick={() => console.log("View clicked")}
-                        >
-                          View
-                        </ActionMenuItem>
-                        <ActionMenuItem
-                          onClick={() => handleActionSelect("start")}
-                        >
-                          Start
-                        </ActionMenuItem>
-                        <ActionMenuItem
-                          onClick={() => handleDeleteUser(selectedUser.sl)}
-                        >
-                          Delete
-                        </ActionMenuItem>
-                      </Menu>
                     </TableCell>
                   </TableRow>
                 );
@@ -674,7 +400,28 @@ const UserListComponent = () => {
           </TableBody>
         </Table>
       </TableContainer>
+      {/* Action Menu */}
+      <Menu
+        anchorEl={anchorEl}
+        open={Boolean(anchorEl)}
+        onClose={handleActionClose}
+      >
+        <ActionMenuItem onClick={() => console.log("View clicked")}>
+          View
+        </ActionMenuItem>
+        <ActionMenuItem onClick={() => handleActionSelect("start")}>
+          Start
+        </ActionMenuItem>
+        {selectedUser && (
+          <ActionMenuItem onClick={() => handleDeleteUser(selectedUser.sl)}>
+            Delete
+          </ActionMenuItem>
+        )}
+        {/* NEW: Stop button to cancel the ongoing start process */}
+        <ActionMenuItem onClick={handleStopAction}>Stop</ActionMenuItem>
+      </Menu>
 
+      {/* Footer Pagination / Rows-per-page */}
       <Box
         sx={{
           display: "flex",
