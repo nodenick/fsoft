@@ -28,18 +28,14 @@ export default function OtpTest() {
     setIsListening(true);
     setConnectionStatus("Connecting...");
 
-    // WebSocket URL (Update this for testing if needed)
-    // const socketUrl = `ws://127.0.0.1:8000/ws/otp/${mobile}`;
+    // Update the WebSocket URL if needed
     const socketUrl = `wss://bagiclub.com/ws/otp/${mobile}`;
-
     console.log("🔗 Connecting to WebSocket:", socketUrl);
 
-    // Ensure previous connection is closed
     if (socketRef.current) {
       socketRef.current.close();
     }
 
-    // Create a new WebSocket connection
     socketRef.current = new WebSocket(socketUrl);
 
     socketRef.current.onopen = () => {
@@ -80,39 +76,45 @@ export default function OtpTest() {
   };
 
   return (
-    <div className="max-w-md mx-auto p-6 border rounded-md shadow-md">
-      <h2 className="text-lg font-bold mb-2">Test OTP via WebSocket</h2>
-
-      <label className="block mb-2 font-medium">Enter Mobile Number:</label>
+    <div className="max-w-md mx-auto p-6 bg-white border border-gray-200 rounded-lg shadow-lg">
+      <label className="block text-sm font-medium text-gray-700 mb-1">
+        Enter Mobile Number:
+      </label>
       <input
         type="text"
         value={mobile}
         onChange={(e) => setMobile(e.target.value)}
-        className="border p-2 w-full rounded mb-4"
+        className="border border-gray-300 p-3 w-full rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 mb-4"
         placeholder="Enter your mobile number"
       />
 
       <button
         onClick={handleTestOtp}
-        className="bg-blue-500 text-white px-4 py-2 rounded w-full"
+        className={`w-full py-3 px-4 rounded-md text-white font-medium transition-colors duration-300 ${
+          isListening
+            ? "bg-blue-300 cursor-not-allowed"
+            : "bg-blue-600 hover:bg-blue-700"
+        }`}
         disabled={isListening}
       >
         {isListening ? "Listening for OTP..." : "Test OTP"}
       </button>
 
       {connectionStatus && (
-        <p className="mt-2 text-sm">
-          <strong>🔗 Status:</strong> {connectionStatus}
+        <p className="mt-3 text-sm text-gray-600">
+          <strong>Status:</strong> {connectionStatus}
         </p>
       )}
 
       {otp && (
-        <div className="mt-4 p-2 border rounded bg-green-100">
-          <p className="text-lg font-bold">✅ OTP Received: {otp}</p>
+        <div className="mt-4 p-4 border border-green-300 rounded-md bg-green-50">
+          <p className="text-xl font-bold text-green-700">
+            OTP Received: {otp}
+          </p>
         </div>
       )}
 
-      {error && <p className="text-red-500 mt-2">{error}</p>}
+      {error && <p className="text-red-600 mt-3">{error}</p>}
     </div>
   );
 }

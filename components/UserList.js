@@ -58,6 +58,7 @@ const UserListComponent = () => {
   useEffect(() => {
     const fetchData = async () => {
       const userList = await getUsers();
+      console.log(userList);
       setUsers(userList);
     };
     fetchData();
@@ -258,9 +259,22 @@ const UserListComponent = () => {
   };
 
   // Filter users by search
-  const filteredUsers = users.filter((u) =>
-    u.name?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // Updated filter: check top-level name or nested info array
+  const filteredUsers = users.filter((u) => {
+    const query = searchQuery.toLowerCase();
+    if (!query) return true; // if no search query, include all
+    // Check if user has a top-level name that matches
+    if (u.name && u.name.toLowerCase().includes(query)) {
+      return true;
+    }
+    // If not, and if user has nested info, check each info item
+    if (u.info && Array.isArray(u.info)) {
+      return u.info.some((infoItem) =>
+        infoItem.name.toLowerCase().includes(query)
+      );
+    }
+    return false;
+  });
 
   return (
     <Box sx={{ padding: "20px", fontFamily: "Arial, sans-serif" }}>
@@ -280,7 +294,7 @@ const UserListComponent = () => {
           onChange={handleSearchChange}
           sx={{ width: "300px" }}
         />
-        <Box sx={{ display: "flex", gap: "10px" }}>
+        {/* <Box sx={{ display: "flex", gap: "10px" }}>
           <Select
             value={status}
             onChange={handleStatusChange}
@@ -295,7 +309,7 @@ const UserListComponent = () => {
           <Button variant="contained" color="success">
             Add New
           </Button>
-        </Box>
+        </Box> */}
       </Box>
 
       {/* Table */}
@@ -323,79 +337,112 @@ const UserListComponent = () => {
                 </TableCell>
               </TableRow>
             ) : (
-              filteredUsers.map((user) => {
-                const loadingState = loadingStates[user.sl] || {};
-                return (
-                  <TableRow key={user.sl}>
-                    <TableCell>{user.sl}</TableCell>
-                    <TableCell>{user.name}</TableCell>
-                    <TableCell>{user.web_id}</TableCell>
-                    <TableCell>{user.phone}</TableCell>
-                    <TableCell>{user.visa_type?.type_name}</TableCell>
-                    <TableCell>
-                      {loadingState.otp === "loading" ? (
-                        <CircularProgress size={20} />
-                      ) : (
-                        loadingState.otp || "waiting"
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {loadingState.verify === "loading" ? (
-                        <CircularProgress size={20} />
-                      ) : (
-                        loadingState.verify || "waiting"
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {loadingState.date === "loading" ? (
-                        <CircularProgress size={20} />
-                      ) : (
-                        loadingState.date || "waiting"
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {loadingState.paymentLink === "loading" ? (
-                        <CircularProgress size={20} />
-                      ) : typeof loadingState.paymentLink === "string" ? (
-                        <a
-                          href={loadingState.paymentLink}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          style={{
-                            color: "blue",
-                            textDecoration: "underline",
-                            cursor: "pointer",
-                          }}
-                        >
-                          Payment Link
-                        </a>
-                      ) : loadingState.paymentLink?.url ? (
-                        <a
-                          href={loadingState.paymentLink.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          style={{
-                            color: "blue",
-                            textDecoration: "underline",
-                            cursor: "pointer",
-                          }}
-                        >
-                          Payment Link
-                        </a>
-                      ) : (
-                        "waiting"
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <IconButton
-                        onClick={(event) => handleActionClick(event, user)}
+              filteredUsers.map((user) => (
+                <TableRow key={user.sl}>
+                  <TableCell>{user.sl}</TableCell>
+                  <TableCell>
+                    {user.info &&
+                    Array.isArray(user.info) &&
+                    user.info.length > 0 ? (
+                      user.info.map((infoItem, idx) => (
+                        <div key={idx} style={{ marginBottom: "4px" }}>
+                          {infoItem.name}
+                        </div>
+                      ))
+                    ) : (
+                      <div>{user.name}</div>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {user.info &&
+                    Array.isArray(user.info) &&
+                    user.info.length > 0 ? (
+                      user.info.map((infoItem, idx) => (
+                        <div key={idx} style={{ marginBottom: "4px" }}>
+                          {infoItem.web_id}
+                        </div>
+                      ))
+                    ) : (
+                      <div>{user.web_id}</div>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {user.info &&
+                    Array.isArray(user.info) &&
+                    user.info.length > 0
+                      ? user.info[0].phone
+                      : user.phone}
+                  </TableCell>
+                  <TableCell>
+                    {user.info &&
+                    Array.isArray(user.info) &&
+                    user.info.length > 0
+                      ? user.info[0].visa_type?.type_name
+                      : user.visa_type?.type_name}
+                  </TableCell>
+
+                  <TableCell>
+                    {loadingStates[user.sl]?.otp === "loading" ? (
+                      <CircularProgress size={20} />
+                    ) : (
+                      loadingStates[user.sl]?.otp || "waiting"
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {loadingStates[user.sl]?.verify === "loading" ? (
+                      <CircularProgress size={20} />
+                    ) : (
+                      loadingStates[user.sl]?.verify || "waiting"
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {loadingStates[user.sl]?.date === "loading" ? (
+                      <CircularProgress size={20} />
+                    ) : (
+                      loadingStates[user.sl]?.date || "waiting"
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {loadingStates[user.sl]?.paymentLink === "loading" ? (
+                      <CircularProgress size={20} />
+                    ) : typeof loadingStates[user.sl]?.paymentLink ===
+                      "string" ? (
+                      <a
+                        href={loadingStates[user.sl]?.paymentLink}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{
+                          color: "blue",
+                          textDecoration: "underline",
+                          cursor: "pointer",
+                        }}
                       >
-                        <MoreVertIcon />
-                      </IconButton>
-                    </TableCell>
-                  </TableRow>
-                );
-              })
+                        Payment Link
+                      </a>
+                    ) : loadingStates[user.sl]?.paymentLink?.url ? (
+                      <a
+                        href={loadingStates[user.sl]?.paymentLink.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{
+                          color: "blue",
+                          textDecoration: "underline",
+                          cursor: "pointer",
+                        }}
+                      >
+                        Payment Link
+                      </a>
+                    ) : (
+                      "waiting"
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <IconButton onClick={(e) => handleActionClick(e, user)}>
+                      <MoreVertIcon />
+                    </IconButton>
+                  </TableCell>
+                </TableRow>
+              ))
             )}
           </TableBody>
         </Table>
