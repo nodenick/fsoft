@@ -77,9 +77,9 @@ export default function OtpTest() {
 
   return (
     <div className="max-w-md mx-auto p-6 bg-white border border-gray-200 rounded-lg shadow-lg">
-      <label className="block text-sm font-medium text-gray-700 mb-1">
+      {/* <label className="block text-sm font-medium text-gray-700 mb-1">
         Enter Mobile Number:
-      </label>
+      </label> */}
       <input
         type="text"
         value={mobile}
