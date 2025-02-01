@@ -18,6 +18,7 @@ import {
   Menu,
   MenuItem as ActionMenuItem,
   CircularProgress,
+  Snackbar,
 } from "@mui/material";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
 
@@ -53,6 +54,7 @@ const UserListComponent = () => {
   const [anchorEl, setAnchorEl] = useState(null);
   const [selectedUser, setSelectedUser] = useState(null);
   const [activeAbortController, setActiveAbortController] = useState(null);
+  const [snackbar, setSnackbar] = useState({ open: false, message: "" });
 
   // Fetch all users on component mount
   useEffect(() => {
@@ -76,11 +78,16 @@ const UserListComponent = () => {
   const handleDeleteUser = async (sl) => {
     try {
       await deleteUserBySL(sl);
-      // On success, remove user from state
       setUsers((prev) => prev.filter((user) => user.sl !== sl));
-      alert(`User with SL ${sl} successfully deleted.`);
+      setSnackbar({
+        open: true,
+        message: `User with SL ${sl} successfully deleted.`,
+      });
     } catch (error) {
-      alert("Failed to delete user. Please try again.");
+      setSnackbar({
+        open: true,
+        message: "Failed to delete user. Please try again.",
+      });
     } finally {
       handleActionClose();
     }
@@ -129,66 +136,61 @@ const UserListComponent = () => {
 
     if (action === "start") {
       try {
-        // Create and store an AbortController so that we can cancel the process via the Stop button.
+        // Create and store an AbortController so that we can cancel sendOtp if WebSocket receives OTP first.
         const abortController = new AbortController();
         setActiveAbortController(abortController);
 
         updateLoadingState(sl, "otp", "loading");
 
-        // 1. Setup AbortController to cancel sendOtp if WebSocket receives OTP first
-        const sendOtpPromise = sendOtp(
+        // 1. Start sendOtp – it may trigger the OTP to be sent, but we don't wait on it directly.
+        sendOtp(
           `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/v1/send-otp`,
           createSendOtpPayload(selectedUser),
           abortController
-        );
+        ).catch((err) => {
+          // It’s expected that this request may be aborted.
+          console.warn("sendOtp aborted or failed:", err);
+        });
 
+        // 2. Setup the WebSocket to listen for the OTP.
         const otpPromise = new Promise((resolve, reject) => {
           const socket = new WebSocket(
-            `wss://bagiclub.com/ws/otp/${selectedUser.phone}`
+            // You can switch between production and local endpoints as needed.
+            `ws://127.0.0.1:8000/ws/otp/${selectedUser.phone}`
           );
-          // const socket = new WebSocket(
-          //   `ws://127.0.0.1:8000/ws/otp/${selectedUser.phone}`
-          // );
 
           socket.onopen = () => console.log("WebSocket connected");
           socket.onmessage = (event) => {
             try {
               const data = JSON.parse(event.data);
-              if (data.phone_number === selectedUser.phone) {
+              if (data.phone_number === selectedUser.phone && data.otp) {
                 console.log("✅ OTP Received via WebSocket:", data.otp);
                 resolve(data.otp);
                 socket.close();
-                abortController.abort(); // Abort sendOtp if OTP is received
+                // Once OTP is received, cancel the sendOtp request (if it’s still pending)
+                abortController.abort();
               }
             } catch (err) {
               reject("❌ Failed to parse OTP via WebSocket");
             }
           };
-          socket.onerror = (err) => reject(err);
+          socket.onerror = (err) => {
+            console.error("WebSocket error:", err);
+            reject(err);
+          };
         });
 
-        // 2. Wait for either sendOtp success or OTP via WebSocket
-        const result = await Promise.race([sendOtpPromise, otpPromise]);
+        // 3. Wait for the OTP from the WebSocket.
+        const otp = await otpPromise;
+        updateLoadingState(sl, "otp", "success");
 
-        let otp;
-        if (typeof result === "object" && result?.data?.status) {
-          console.log("✅ sendOtp successful, waiting for WebSocket OTP...");
-          updateLoadingState(sl, "otp", "success");
-          otp = await otpPromise; // Now wait for WebSocket OTP
-        } else {
-          console.log("✅ OTP received via WebSocket:", result);
-          updateLoadingState(sl, "otp", "success");
-          otp = result; // Use WebSocket OTP
-        }
-
-        // 3. Verify OTP
+        // 4. Verify OTP
         updateLoadingState(sl, "verify", "loading");
 
-        // Check if otp is null or falsy before generating the payload.
         if (!otp) {
           alert("Process stopped.");
           updateLoadingState(sl, "verify", "failed");
-          return; // Stop further processing.
+          return;
         }
 
         const verifyPayload = createVerifyOtpPayload(selectedUser, otp);
@@ -198,7 +200,7 @@ const UserListComponent = () => {
         );
         updateLoadingState(sl, "verify", "success");
 
-        // 4. Generate Slot Time
+        // 5. Generate Slot Time
         updateLoadingState(sl, "date", "loading");
         const { slotDates } = verifyResponse;
         if (!slotDates?.length) {
@@ -216,19 +218,17 @@ const UserListComponent = () => {
           slotDetails.slotTimes?.[0]?.time_display || "No slots"
         );
 
-        // 5. Payment Step (With Retry)
+        // 6. Payment Step (With Retry)
         let paymentSuccess = false;
         let hashParam;
 
         while (!paymentSuccess) {
-          // Prompt for hash_param before attempting payment
           hashParam = prompt("Enter the hash_param for payment:");
           if (!hashParam) {
             alert("Hash_param is required to proceed.");
             return;
           }
 
-          // 6. Attempt to Pay Invoice
           updateLoadingState(sl, "paymentLink", "loading");
           const chosenSlot = slotDetails.slotTimes[0] || {};
           const paymentResponse = await payInvoice(
@@ -238,7 +238,7 @@ const UserListComponent = () => {
 
           if (paymentResponse?.url) {
             updateLoadingState(sl, "paymentLink", paymentResponse.url);
-            paymentSuccess = true; // Exit loop when payment succeeds
+            paymentSuccess = true;
           } else {
             alert("Payment failed. Please enter the hash_param again.");
           }
@@ -385,21 +385,69 @@ const UserListComponent = () => {
                     {loadingStates[user.sl]?.otp === "loading" ? (
                       <CircularProgress size={20} />
                     ) : (
-                      loadingStates[user.sl]?.otp || "waiting"
+                      <Box
+                        sx={{
+                          backgroundColor:
+                            loadingStates[user.sl]?.otp === "success"
+                              ? "green"
+                              : "transparent",
+                          color:
+                            loadingStates[user.sl]?.otp === "success"
+                              ? "white"
+                              : "inherit",
+                          padding: "4px",
+                          borderRadius: "4px",
+                          textAlign: "center",
+                        }}
+                      >
+                        {loadingStates[user.sl]?.otp || "waiting"}
+                      </Box>
                     )}
                   </TableCell>
                   <TableCell>
                     {loadingStates[user.sl]?.verify === "loading" ? (
                       <CircularProgress size={20} />
                     ) : (
-                      loadingStates[user.sl]?.verify || "waiting"
+                      <Box
+                        sx={{
+                          backgroundColor:
+                            loadingStates[user.sl]?.verify === "success"
+                              ? "green"
+                              : "transparent",
+                          color:
+                            loadingStates[user.sl]?.verify === "success"
+                              ? "white"
+                              : "inherit",
+                          padding: "4px",
+                          borderRadius: "4px",
+                          textAlign: "center",
+                        }}
+                      >
+                        {loadingStates[user.sl]?.verify || "waiting"}
+                      </Box>
                     )}
                   </TableCell>
                   <TableCell>
                     {loadingStates[user.sl]?.date === "loading" ? (
                       <CircularProgress size={20} />
                     ) : (
-                      loadingStates[user.sl]?.date || "waiting"
+                      <Box
+                        sx={{
+                          backgroundColor:
+                            loadingStates[user.sl]?.date === "success"
+                              ? "green"
+                              : "transparent",
+                          color:
+                            loadingStates[user.sl]?.date === "success"
+                              ? "white"
+                              : "inherit",
+                          padding: "4px",
+                          borderRadius: "4px",
+                          textAlign: "center",
+                        }}
+                      >
+                        {loadingStates[user.sl]?.date || "waiting"}
+                      </Box>
                     )}
                   </TableCell>
                   <TableCell>
@@ -453,9 +501,6 @@ const UserListComponent = () => {
         open={Boolean(anchorEl)}
         onClose={handleActionClose}
       >
-        <ActionMenuItem onClick={() => console.log("View clicked")}>
-          View
-        </ActionMenuItem>
         <ActionMenuItem onClick={() => handleActionSelect("start")}>
           Start
         </ActionMenuItem>
@@ -498,6 +543,12 @@ const UserListComponent = () => {
           </Select>
         </Box>
       </Box>
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={3000}
+        onClose={() => setSnackbar({ ...snackbar, open: false })}
+        message={snackbar.message}
+      />
     </Box>
   );
 };

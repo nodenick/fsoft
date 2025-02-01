@@ -70,7 +70,7 @@ export default function OtpTest() {
     socketRef.current.onclose = (event) => {
       console.log("🔴 WebSocket Disconnected (Code:", event.code, ")");
       if (!otp) {
-        setConnectionStatus("Disconnected - No OTP Received");
+        setConnectionStatus("Disconnected -  OTP Received");
       }
     };
   };
