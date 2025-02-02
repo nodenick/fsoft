@@ -235,14 +235,27 @@ const UserListComponent = () => {
 
           updateLoadingState(sl, "paymentLink", "loading");
           const chosenSlot = slotDetails.slotTimes[0] || {};
+
           const paymentResponse = await payInvoice(
             `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/v1/paynow`,
             createPayInvoicePayload(selectedUser, otp, chosenSlot, hashParam)
           );
 
-          if (paymentResponse?.url) {
+          // Check if the response has the specific error message
+          if (
+            paymentResponse?.status === "FAIL" &&
+            paymentResponse?.errors ===
+              "Validation failed. Please try again later."
+          ) {
+            alert(
+              "Payment failed with error: " +
+                paymentResponse.errors +
+                "\nPlease enter the hash_param again."
+            );
+            // Continue looping to prompt for the hash_param again.
+          } else if (paymentResponse?.url) {
             updateLoadingState(sl, "paymentLink", paymentResponse.url);
-            paymentSuccess = true;
+            paymentSuccess = true; // Payment succeeded; exit loop.
           } else {
             alert("Payment failed. Please enter the hash_param again.");
           }

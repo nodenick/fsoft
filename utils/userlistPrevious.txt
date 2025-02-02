@@ -735,3 +735,48 @@
 //     console.error("Error during updateHashParam:", error);
 //   }
 // };
+
+
+
+// Get OTP
+export const getOtp = async (getOtpUrl) => {
+  let otp = null;
+
+  while (!otp) {
+    try {
+      const response = await fetch(getOtpUrl, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+
+      const result = await response.json();
+
+      if (response.ok && result.otp) {
+        otp = result.otp; // Store OTP on success
+        console.log("getOtp successful:", result);
+        return otp;
+      } else {
+        console.log("getOtp failed, retrying:", result);
+      }
+    } catch (error) {
+      console.error("Error during getOtp, retrying:", error);
+    }
+
+    // Add a 2-second delay before retrying
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+};
+
+
+export const getHashParamFromUser = () => {
+  return new Promise((resolve) => {
+    const hashParam = prompt("Enter the hash_param for payment:"); // Prompt user to input the hash_param
+    if (hashParam) {
+      resolve(hashParam); // Return the entered hash_param
+    } else {
+      alert("Hash_param is required for the next step.");
+    }
+  });
+};

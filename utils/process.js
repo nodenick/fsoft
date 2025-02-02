@@ -1,99 +1,55 @@
-// // Send OTP
-// export const sendOtp = async (sendOtpUrl, payload) => {
-//   let sendOtpSuccess = false;
+// Helper function to combine two AbortSignals into one.
+// The returned signal aborts if either signal aborts.
+function combineAbortSignals(signal1, signal2) {
+  const controller = new AbortController();
 
-//   while (!sendOtpSuccess) {
-//     try {
-//       const response = await fetch(sendOtpUrl, {
-//         method: "POST",
-//         headers: {
-//           "Content-Type": "application/json",
-//         },
-//         body: JSON.stringify(payload),
-//       });
+  const abortHandler = () => controller.abort();
 
-//       if (!response.ok) {
-//         console.error(`HTTP Error: ${response.status} ${response.statusText}`);
-//         continue; // Retry on non-OK HTTP status
-//       }
+  // If either signal is already aborted, abort immediately.
+  if (signal1.aborted || signal2.aborted) {
+    controller.abort();
+  } else {
+    signal1.addEventListener("abort", abortHandler);
+    signal2.addEventListener("abort", abortHandler);
+  }
 
-//       const result = await response.json();
-
-//       if (result && result.data?.status === true) {
-//         sendOtpSuccess = true; // Exit loop on success
-//         console.log("sendOtp successful:", result);
-//         return result; // Return response for further processing
-//       } else if (result && result.data?.error_reason) {
-//         console.error(`API Error: ${result.data.error_reason}`);
-//       } else {
-//         console.error("Unexpected API Response:", result);
-//       }
-//     } catch (error) {
-//       console.error("Error during sendOtp, retrying:", error);
-//     }
-//   }
-// };
-
-// export const sendOtp = async (sendOtpUrl, payload) => {
-//   let sendOtpSuccess = false;
-//   const delay = 2000; // 5 seconds delay between retries
-
-//   while (!sendOtpSuccess) {
-//     try {
-//       const response = await fetch(sendOtpUrl, {
-//         method: "POST",
-//         headers: {
-//           "Content-Type": "application/json",
-//         },
-//         body: JSON.stringify(payload),
-//       });
-
-//       if (!response.ok) {
-//         console.error(`HTTP Error: ${response.status} ${response.statusText}`);
-//         await new Promise((resolve) => setTimeout(resolve, delay));
-//         continue; // Retry on non-OK HTTP status
-//       }
-
-//       const result = await response.json();
-
-//       if (result && result.data?.status === true) {
-//         sendOtpSuccess = true; // Success, exit loop
-//         console.log("sendOtp successful:", result);
-//         return result; // Return result for further processing
-//       } else {
-//         console.error("sendOtp failed, retrying:", result);
-//         await new Promise((resolve) => setTimeout(resolve, delay)); // Delay before retry
-//       }
-//     } catch (error) {
-//       console.error("Error during sendOtp, retrying:", error);
-//       await new Promise((resolve) => setTimeout(resolve, delay)); // Delay before retry on error
-//     }
-//   }
-// };
+  return controller.signal;
+}
 
 export const sendOtp = async (
   sendOtpUrl,
   payload,
-  abortController,
-  timeout = 9000
+  externalAbortController, // the controller passed from handleActionSelect
+  timeout = 5000
 ) => {
-  let delay = 100; // Initial delay
+  let delay = 100; // Initial delay in milliseconds
 
   while (true) {
     try {
-      if (abortController.signal.aborted) {
+      // Check if the external abort signal is set.
+      if (externalAbortController.signal.aborted) {
         console.warn("⚠️ sendOtp aborted as OTP was received via WebSocket.");
-        return null; // Stop execution if aborted
+        return null; // Stop execution if aborted externally.
       }
 
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), timeout);
+      // Create an internal controller for enforcing the timeout.
+      const internalController = new AbortController();
+      // Combine the external abort signal with the internal timeout controller.
+      const combinedSignal = combineAbortSignals(
+        externalAbortController.signal,
+        internalController.signal
+      );
+
+      // Set up the timeout.
+      const timeoutId = setTimeout(() => {
+        internalController.abort();
+      }, timeout);
 
       const response = await fetch(sendOtpUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
-        signal: controller.signal,
+        signal: combinedSignal,
       });
 
       clearTimeout(timeoutId);
@@ -111,54 +67,88 @@ export const sendOtp = async (
 
       if (result?.data?.status) {
         console.log("✅ sendOtp successful:", result);
-        return result; // Exit loop on success
+        return result; // Exit loop on success.
       }
 
       console.warn(`⚠️ sendOtp failed, retrying in ${delay}ms...`, result);
     } catch (error) {
       if (error.name === "AbortError") {
-        console.warn("⚠️ sendOtp request aborted.");
-        return null; // Stop execution if aborted
+        // If the external abort was triggered, stop further requests.
+        if (externalAbortController.signal.aborted) {
+          console.warn("⚠️ sendOtp aborted as OTP was received via WebSocket.");
+          return null;
+        }
+        console.warn(
+          `⚠️ sendOtp request timed out - Retrying in ${delay}ms...`
+        );
       } else {
         console.error("🚨 sendOtp Error:", error);
       }
     }
 
+    // Wait before retrying.
     await new Promise((resolve) => setTimeout(resolve, delay));
-    delay = delay < 1000 ? delay * 2 : 100;
+    delay = Math.min(delay * 2, 1000);
   }
 };
 
-// Get OTP
-export const getOtp = async (getOtpUrl) => {
-  let otp = null;
+// export const sendOtp = async (
+//   sendOtpUrl,
+//   payload,
+//   abortController,
+//   timeout = 5000
+// ) => {
+//   let delay = 100; // Initial delay
 
-  while (!otp) {
-    try {
-      const response = await fetch(getOtpUrl, {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
+//   while (true) {
+//     try {
+//       if (abortController.signal.aborted) {
+//         console.warn("⚠️ sendOtp aborted as OTP was received via WebSocket.");
+//         return null; // Stop execution if aborted
+//       }
 
-      const result = await response.json();
+//       const controller = new AbortController();
+//       const timeoutId = setTimeout(() => controller.abort(), timeout);
 
-      if (response.ok && result.otp) {
-        otp = result.otp; // Store OTP on success
-        console.log("getOtp successful:", result);
-        return otp;
-      } else {
-        console.log("getOtp failed, retrying:", result);
-      }
-    } catch (error) {
-      console.error("Error during getOtp, retrying:", error);
-    }
+//       const response = await fetch(sendOtpUrl, {
+//         method: "POST",
+//         headers: { "Content-Type": "application/json" },
+//         body: JSON.stringify(payload),
+//         signal: controller.signal,
+//       });
 
-    // Add a 2-second delay before retrying
-    await new Promise((resolve) => setTimeout(resolve, 100));
-  }
-};
+//       clearTimeout(timeoutId);
+
+//       if (!response.ok) {
+//         console.error(
+//           `❌ HTTP Error: ${response.status} - Retrying in ${delay}ms...`
+//         );
+//         await new Promise((resolve) => setTimeout(resolve, delay));
+//         delay = Math.min(delay * 2, 1000);
+//         continue;
+//       }
+
+//       const result = await response.json();
+
+//       if (result?.data?.status) {
+//         console.log("✅ sendOtp successful:", result);
+//         return result; // Exit loop on success
+//       }
+
+//       console.warn(`⚠️ sendOtp failed, retrying in ${delay}ms...`, result);
+//     } catch (error) {
+//       if (error.name === "AbortError") {
+//         console.warn("⚠️ sendOtp request aborted.");
+//         return null; // Stop execution if aborted
+//       } else {
+//         console.error("🚨 sendOtp Error:", error);
+//       }
+//     }
+
+//     await new Promise((resolve) => setTimeout(resolve, delay));
+//     delay = delay < 1000 ? delay * 2 : 100;
+//   }
+// };
 
 // Verify OTP
 // export const verifyOtp = async (verifyOtpUrl, payload) => {
@@ -191,11 +181,13 @@ export const getOtp = async (getOtpUrl) => {
 //   }
 // };
 
-export const verifyOtp = async (verifyOtpUrl, payload, timeout = 3000) => {
+export const verifyOtp = async (verifyOtpUrl, payload, timeout = 7000) => {
+  let retryDelay = 100; // Start delay at 100ms
+
   while (true) {
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), timeout); // Cancel request if too slow
+      const timeoutId = setTimeout(() => controller.abort(), timeout);
 
       const response = await fetch(verifyOtpUrl, {
         method: "POST",
@@ -221,14 +213,25 @@ export const verifyOtp = async (verifyOtpUrl, payload, timeout = 3000) => {
         return null;
       }
 
-      console.warn(`⚠️ Verification failed. Retrying immediately...`, result);
+      console.warn(
+        `⚠️ Verification failed. Retrying in ${retryDelay}ms...`,
+        result
+      );
     } catch (error) {
       if (error.name === "AbortError") {
-        console.error("⏳ Request timed out. Retrying...");
+        console.error(`⏳ Request timed out. Retrying in ${retryDelay}ms...`);
       } else {
-        console.error("🚨 Error during OTP verification, retrying...", error);
+        console.error(
+          `🚨 Error during OTP verification. Retrying in ${retryDelay}ms...`,
+          error
+        );
       }
     }
+
+    // Wait for the retry delay before the next attempt
+    await new Promise((resolve) => setTimeout(resolve, retryDelay));
+    // Increase the delay, capping at 1000ms
+    retryDelay = Math.min(retryDelay * 2, 1000);
   }
 };
 
@@ -351,17 +354,6 @@ export const getAppointmentTime = async (aptimeUrl, payload) => {
     await new Promise((resolve) => setTimeout(resolve, delay));
     delay = Math.min(delay * 2, 1000); // ⏳ Double the delay, max at 1000ms
   }
-};
-
-export const getHashParamFromUser = () => {
-  return new Promise((resolve) => {
-    const hashParam = prompt("Enter the hash_param for payment:"); // Prompt user to input the hash_param
-    if (hashParam) {
-      resolve(hashParam); // Return the entered hash_param
-    } else {
-      alert("Hash_param is required for the next step.");
-    }
-  });
 };
 
 export const payInvoice = async (payUrl, payload) => {
