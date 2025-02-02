@@ -20,7 +20,7 @@ export const sendOtp = async (
   sendOtpUrl,
   payload,
   externalAbortController, // the controller passed from handleActionSelect
-  timeout = 5000
+  timeout = 2500
 ) => {
   let delay = 100; // Initial delay in milliseconds
 
