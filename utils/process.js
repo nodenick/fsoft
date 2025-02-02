@@ -181,7 +181,7 @@ export const sendOtp = async (
 //   }
 // };
 
-export const verifyOtp = async (verifyOtpUrl, payload, timeout = 7000) => {
+export const verifyOtp = async (verifyOtpUrl, payload, timeout = 20000) => {
   let retryDelay = 100; // Start delay at 100ms
 
   while (true) {
