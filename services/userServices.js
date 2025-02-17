@@ -1,6 +1,6 @@
 // services/userService.js
 export const getUsers = async () => {
-  const API_URL = `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/v1/list-forms`;
+  const API_URL = `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/v2/list-applications`;
   try {
     const response = await fetch(API_URL, {
       method: "GET",
@@ -23,7 +23,7 @@ export const getUsers = async () => {
 };
 
 export const deleteUserBySL = async (sl) => {
-  const deleteUrl = `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/v1/delete-form/${sl}`;
+  const deleteUrl = `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/v2/delete-application/${sl}`;
   try {
     const response = await fetch(deleteUrl, {
       method: "DELETE",

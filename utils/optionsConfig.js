@@ -1,46 +1,45 @@
-// optionsConfig.js
+// utils/optionsConfig.js
 
 export const centerOptions = {
   Rajshahi: {
     ivacId: 2,
-    centerId: 3,
-    prefix: "R",
-    address:
-      "Morium Ali Tower,Holding No-18, Plot No-557, 1ST Floor,Old Bilsimla, Greater Road,Barnali More, 1ST Floor, Ward No-10,Rajshahi.",
   },
   Dhaka: {
     ivacId: 17,
-    centerId: 1,
-    prefix: "D",
-    address: "Jamuna Future Park",
   },
   Chittagong: {
     ivacId: 5,
-    centerId: 2,
-    prefix: "C",
-    address:
-      "2111, Zakir Hossain Road, Habib Lane,Opposite Holy Crescent Hospital, Chittaghong",
   },
   Sylhet: {
     ivacId: 5,
-    centerId: 4,
-    prefix: "S",
-    address: "456 Sylhet Road, Sylhet.",
   },
   Khulna: {
-    ivacId: 6,
-    centerId: 5,
-    prefix: "K",
-    address: "123 Khulna Road, Khulna.",
+    ivacId: 3,
   },
 };
 
 export const visaOptions = {
-  "ENTRY VISA": { visaTypeId: 6, visaOrder: 5 },
-  "TOURIST VISA": { visaTypeId: 1, visaOrder: 1 },
-  "MEDICAL/MEDICAL ATTENDANT VISA": { visaTypeId: 13, visaOrder: 2 },
-  "BUSINESS VISA": { visaTypeId: 3, visaOrder: 3 },
-  "STUDENT VISA": { visaTypeId: 2, visaOrder: 6 },
+  "ENTRY VISA": { visaTypeId: 6 },
+  "TOURIST VISA": { visaTypeId: 1 },
+  "MEDICAL/MEDICAL ATTENDANT VISA": { visaTypeId: 13 },
+  "BUSINESS VISA": { visaTypeId: 3 },
+  "STUDENT VISA": { visaTypeId: 2 },
+};
+
+export const highcom = {
+  Dhaka: "1",
+  Chittagong: "2",
+  Sylhet: "3",
+  Khulna: "4",
+};
+
+// New mapping for IVAC centers based on IVAC name dropdown options.
+export const ivacOptions = {
+  "IVAC, RAJSHAHI": "2",
+  "IVAC, KHULNA": "3",
+  "IVAC, SYLHET": "5",
+  "IVAC, CHITTAGONG": "5",
+  "IVAC, Dhaka (JFP)": "17",
 };
 
 // Payment Methods Configuration

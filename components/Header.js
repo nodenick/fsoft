@@ -5,6 +5,7 @@ import {
   Typography,
   Button,
   Box,
+  TextField,
   useMediaQuery,
   useTheme,
 } from "@mui/material";
@@ -14,6 +15,8 @@ import OtpTest from "./otpListen/otpTest";
 
 function Header({ onLogout }) {
   const [isModalOpen, setModalOpen] = useState(false);
+  const [showUpdateToken, setShowUpdateToken] = useState(false);
+  const [newToken, setNewToken] = useState("");
   const theme = useTheme();
   const isSmallScreen = useMediaQuery(theme.breakpoints.down("sm"));
 
@@ -25,6 +28,19 @@ function Header({ onLogout }) {
     localStorage.removeItem("token");
     if (onLogout) onLogout();
     else window.location.reload();
+  };
+
+  const toggleUpdateToken = () => {
+    setShowUpdateToken((prev) => !prev);
+  };
+
+  const handleUpdateToken = () => {
+    // Save the new token in localStorage
+    localStorage.setItem("token", newToken);
+    // If you have a context or global state, update it here as needed.
+    // For example: tokenContext.setToken(newToken);
+    setNewToken("");
+    setShowUpdateToken(false);
   };
 
   return (
@@ -63,7 +79,6 @@ function Header({ onLogout }) {
               width: { xs: "100%", sm: "auto" },
             }}
           >
-            {/* Optionally adjust the OtpTest component for responsiveness */}
             <OtpTest />
             <Button
               variant="contained"
@@ -79,6 +94,18 @@ function Header({ onLogout }) {
             </Button>
             <Button
               variant="contained"
+              color="secondary"
+              onClick={toggleUpdateToken}
+              sx={{
+                textTransform: "none",
+                px: { xs: 2, sm: 3 },
+                width: { xs: "100%", sm: "auto" },
+              }}
+            >
+              Update Token
+            </Button>
+            <Button
+              variant="contained"
               color="error"
               onClick={handleLogout}
               startIcon={<LogoutIcon />}
@@ -91,6 +118,35 @@ function Header({ onLogout }) {
               Logout
             </Button>
           </Box>
+          {/* Conditionally render the update token input field */}
+          {showUpdateToken && (
+            <Box
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                gap: 1,
+                width: "100%",
+                mt: { xs: 1, sm: 0 },
+              }}
+            >
+              <TextField
+                label="New Token"
+                color="black"
+                variant="outlined"
+                size="small"
+                value={newToken}
+                onChange={(e) => setNewToken(e.target.value)}
+                fullWidth
+              />
+              <Button
+                variant="contained"
+                color="secondary"
+                onClick={handleUpdateToken}
+              >
+                Update
+              </Button>
+            </Box>
+          )}
         </Toolbar>
       </AppBar>
       <FormComponent isOpen={isModalOpen} onClose={closeModal} />

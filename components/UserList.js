@@ -10,7 +10,6 @@ import {
   TableRow,
   Paper,
   TextField,
-  Button,
   Select,
   MenuItem,
   Typography,
@@ -19,44 +18,48 @@ import {
   MenuItem as ActionMenuItem,
   CircularProgress,
   Snackbar,
+  Button,
 } from "@mui/material";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
 
-// Import your new service methods:
+// Import your service methods:
 import { getUsers, deleteUserBySL } from "../services/userServices";
 
-// Import the OTP/payment helpers from utils/process.js
+// Import process functions from utils/process.js
 import {
+  sendApInfo,
+  sendPerInfo,
+  sendOverview,
   sendOtp,
   verifyOtp,
-  getAppointmentTime,
-  updateHashParam,
-  payInvoice,
+  sendSlotTime,
+  sendPayNow,
 } from "../utils/process";
 import {
+  createApInfoPayload,
+  createPerInfoPayload,
+  createOverviewPayload,
   createSendOtpPayload,
   createVerifyOtpPayload,
-  createGetAppointmentTimePayload,
-  createPayInvoicePayload,
+  createSlotTimePayload,
+  createPayNowPayload,
 } from "../services/payloadGenerators";
-// If you have a context that you use for other data:
+
 import { DataContext } from "../context/DataContext";
 
 const UserListComponent = () => {
-  // If you do need context:
-  const { getData } = useContext(DataContext); // If not used, you can remove it.
+  const { getData } = useContext(DataContext);
 
   const [users, setUsers] = useState([]);
+  // loadingStates will be an object keyed by user.sl with keys for each process step
   const [loadingStates, setLoadingStates] = useState({});
   const [searchQuery, setSearchQuery] = useState("");
-  const [status, setStatus] = useState("");
   const [rowsPerPage, setRowsPerPage] = useState(5);
   const [anchorEl, setAnchorEl] = useState(null);
   const [selectedUser, setSelectedUser] = useState(null);
-  const [activeAbortController, setActiveAbortController] = useState(null);
   const [snackbar, setSnackbar] = useState({ open: false, message: "" });
 
-  // Fetch all users on component mount
+  // Fetch users on component mount
   useEffect(() => {
     const fetchData = async () => {
       const userList = await getUsers();
@@ -66,15 +69,22 @@ const UserListComponent = () => {
     fetchData();
   }, []);
 
+  // Helper: Update loading state for a given user (by sl) and step key
+  const updateLoadingState = (sl, key, state) => {
+    setLoadingStates((prev) => ({
+      ...prev,
+      [sl]: {
+        ...prev[sl],
+        [key]: state,
+      },
+    }));
+  };
+
   const handleSearchChange = (e) => {
     setSearchQuery(e.target.value);
   };
 
-  const handleStatusChange = (e) => {
-    setStatus(e.target.value);
-  };
-
-  // Separated delete logic into a dedicated service method
+  // Delete logic
   const handleDeleteUser = async (sl) => {
     try {
       await deleteUserBySL(sl);
@@ -104,194 +114,180 @@ const UserListComponent = () => {
     setSelectedUser(null);
   };
 
-  // Helper to update nested loading states
-  const updateLoadingState = (sl, key, state) => {
-    setLoadingStates((prev) => ({
-      ...prev,
-      [sl]: {
-        ...prev[sl],
-        [key]: state,
-      },
-    }));
-  };
-
-  // NEW: Handler to stop an ongoing "start" process.
-  const handleStopAction = () => {
-    if (activeAbortController) {
-      activeAbortController.abort(); // Abort the sendOtp request (and any dependent async actions)
-      // Optionally update a loading state to indicate it was stopped.
-      if (selectedUser) {
-        updateLoadingState(selectedUser.sl, "otp", "stopped");
-      }
-      setActiveAbortController(null);
-    }
-    handleActionClose();
-  };
-  // Single method that covers the entire "Start" action flow
-
-  // Single method that covers the entire "Start" action flow
-  const handleActionSelect = async (action) => {
+  const handleStartProcess = async () => {
     if (!selectedUser) return;
     const sl = selectedUser.sl;
+    try {
+      // STEP 1: AP Info
+      updateLoadingState(sl, "apinfo", "loading");
+      const apPayload = createApInfoPayload(selectedUser);
+      await sendApInfo(
+        `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/v2/apinfo`,
+        apPayload
+      );
+      updateLoadingState(sl, "apinfo", "success");
 
-    if (action === "start") {
-      try {
-        // Create and store an AbortController so that we can cancel sendOtp if WebSocket receives OTP first.
-        const abortController = new AbortController();
-        setActiveAbortController(abortController);
+      // STEP 2: PER Info
+      updateLoadingState(sl, "perinfo", "loading");
+      const perPayload = createPerInfoPayload(selectedUser);
+      await sendPerInfo(
+        `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/v2/personal-info-submit`,
+        perPayload
+      );
+      updateLoadingState(sl, "perinfo", "success");
 
-        updateLoadingState(sl, "otp", "loading");
+      // STEP 3: Overview
+      updateLoadingState(sl, "overview", "loading");
+      const overviewPayload = createOverviewPayload();
+      await sendOverview(
+        `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/v2/overview-submit`,
+        overviewPayload
+      );
+      updateLoadingState(sl, "overview", "success");
 
-        // 1. Start sendOtp – it may trigger the OTP to be sent, but we don't wait on it directly.
-        sendOtp(
-          `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/v1/send-otp`,
-          createSendOtpPayload(selectedUser),
-          abortController
-        ).catch((err) => {
-          // It’s expected that this request may be aborted.
-          console.warn("sendOtp aborted or failed:", err);
-        });
+      // STEP 4: Send OTP
+      updateLoadingState(sl, "sendotp", "loading");
+      const otpPayload = createSendOtpPayload();
+      await sendOtp(
+        `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/v2/pay-otp-sent`,
+        otpPayload
+      );
+      updateLoadingState(sl, "sendotp", "success");
 
-        // 2. Setup the WebSocket to listen for the OTP.
-        const otpPromise = new Promise((resolve, reject) => {
-          // const socket = new WebSocket(
-          //   // You can switch between production and local endpoints as needed.
-          //   `ws://127.0.0.1:8000/ws/otp/${selectedUser.phone}`
-          // );
-          const socket = new WebSocket(
-            // You can switch between production and local endpoints as needed.
-            `wss://bagiclub.com/ws/otp/${selectedUser.phone}`
-          );
+      // STEP 5: Verify OTP
+      updateLoadingState(sl, "verifyotp", "loading");
 
-          socket.onopen = () => console.log("WebSocket connected");
-          socket.onmessage = (event) => {
-            try {
-              const data = JSON.parse(event.data);
-              if (data.phone_number === selectedUser.phone && data.otp) {
-                console.log("✅ OTP Received via WebSocket:", data.otp);
-                resolve(data.otp);
-                socket.close();
-                // Once OTP is received, cancel the sendOtp request (if it’s still pending)
-                abortController.abort();
-              }
-            } catch (err) {
-              reject("❌ Failed to parse OTP via WebSocket");
-            }
-          };
-          socket.onerror = (err) => {
-            console.error("WebSocket error:", err);
-            reject(err);
-          };
-        });
-
-        // 3. Wait for the OTP from the WebSocket.
-        const otp = await otpPromise;
-        updateLoadingState(sl, "otp", "success");
-
-        // 4. Verify OTP
-        updateLoadingState(sl, "verify", "loading");
-
-        if (!otp) {
-          alert("Process stopped.");
-          updateLoadingState(sl, "verify", "failed");
-          return;
-        }
-
-        const verifyPayload = createVerifyOtpPayload(selectedUser, otp);
-        const verifyResponse = await verifyOtp(
-          `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/v1/verify-otp`,
-          verifyPayload
-        );
-        updateLoadingState(sl, "verify", "success");
-
-        // 5. Generate Slot Time
-        updateLoadingState(sl, "date", "loading");
-        const { slotDates } = verifyResponse;
-        if (!slotDates?.length) {
-          updateLoadingState(sl, "date", "No slots");
-          return;
-        }
-        const specificDate = slotDates[0];
-        const slotDetails = await getAppointmentTime(
-          `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/v1/aptime`,
-          createGetAppointmentTimePayload(selectedUser, otp, specificDate)
-        );
-        updateLoadingState(
-          sl,
-          "date",
-          slotDetails.slotTimes?.[0]?.time_display || "No slots"
-        );
-
-        // 6. Payment Step (With Retry)
-        let paymentSuccess = false;
-        let hashParam;
-
-        while (!paymentSuccess) {
-          hashParam = prompt("Enter the hash_param for payment:");
-          if (!hashParam) {
-            alert("Hash_param is required to proceed.");
-            return;
-          }
-
-          updateLoadingState(sl, "paymentLink", "loading");
-          const chosenSlot = slotDetails.slotTimes[0] || {};
-
-          const paymentResponse = await payInvoice(
-            `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/v1/paynow`,
-            createPayInvoicePayload(selectedUser, otp, chosenSlot, hashParam)
-          );
-
-          // Check if the response has the specific error message
-          if (
-            paymentResponse?.status === "FAIL" &&
-            paymentResponse?.errors ===
-              "Validation failed. Please try again later."
-          ) {
-            alert(
-              "Payment failed with error: " +
-                paymentResponse.errors +
-                "\nPlease enter the hash_param again."
-            );
-            // Continue looping to prompt for the hash_param again.
-          } else if (paymentResponse?.url) {
-            updateLoadingState(sl, "paymentLink", paymentResponse.url);
-            paymentSuccess = true; // Payment succeeded; exit loop.
-          } else {
-            alert("Payment failed. Please enter the hash_param again.");
-          }
-        }
-
-        // Process complete: clear the active abort controller and close the menu.
-        setActiveAbortController(null);
-        handleActionClose();
-      } catch (error) {
-        console.error("❌ Error handling start action:", error);
-        updateLoadingState(sl, "otp", "failed");
-        setActiveAbortController(null);
-        handleActionClose();
+      // Prompt the user to enter the OTP
+      const otp = window.prompt("Please enter the OTP received:");
+      if (!otp) {
+        throw new Error("OTP not provided");
       }
-      // Note: Do NOT call handleActionClose() automatically in a finally block here,
-      // so that the Stop button remains available while the process is running.
+
+      const verifyPayload = createVerifyOtpPayload(otp);
+      await verifyOtp(
+        `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/v2/pay-otp-verify`,
+        verifyPayload
+      );
+      updateLoadingState(sl, "verifyotp", "success");
+      // Extract the first slot date from the response
+      const appointmentDate =
+        verifyOtpResponse?.data?.slot_dates &&
+        verifyOtpResponse.data.slot_dates.length > 0
+          ? verifyOtpResponse.data.slot_dates[0]
+          : "";
+
+      if (!appointmentDate) {
+        throw new Error("No appointment date available from OTP verification");
+      }
+
+      // STEP 5: Slot Time Step
+      updateLoadingState(sl, "slottime", "loading");
+      const slotTimePayload = createSlotTimePayload(appointmentDate);
+      const slotTimeResponse = await sendSlotTime(
+        `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/v2/pay-slot-time`,
+        slotTimePayload
+      );
+      updateLoadingState(sl, "slottime", "success");
+
+      // Extract slot time details
+      const slotData = slotTimeResponse.data;
+      const slotTimeDetails =
+        slotData.slot_times && slotData.slot_times.length > 0
+          ? slotData.slot_times[0]
+          : null;
+
+      if (slotTimeDetails) {
+        // Extract the hour and date from the slot details
+        const selectedHour = slotTimeDetails.hour; // e.g., 10
+        const selectedDate = slotTimeDetails.date; // e.g., '2025-02-16'
+
+        // Extract the siteKey from the captcha HTML using a regular expression
+        const captchaHTML = slotTimeResponse.captcha;
+        const siteKeyMatch = captchaHTML.match(/data-sitekey="([^"]+)"/);
+        const siteKey = siteKeyMatch ? siteKeyMatch[1] : "";
+
+        // Now store these values for further use (you might save them in state or a context)
+        console.log("Selected Hour:", selectedHour);
+        console.log("Selected Date:", selectedDate);
+        console.log("Site Key:", siteKey);
+
+        // For example, you could update your component state:
+        // setSelectedSlot({ hour: selectedHour, date: selectedDate, siteKey });
+      } else {
+        console.warn("No slot time details available in the response");
+      }
+
+      // STEP 6: Pay Now Step
+      updateLoadingState(sl, "paynow", "loading");
+
+      // Prompt the user for the hash_param
+      const hash_param = window.prompt(
+        "Please enter the hash_param for payment:"
+      );
+
+      if (!hash_param) {
+        throw new Error("Payment hash_param is required.");
+      }
+
+      // Assume you have the selected appointment date and time from the previous slot time step:
+      const appointment_date = selectedDate; // e.g., '2025-02-16'
+      const appointment_time = String(selectedHour); // e.g., '10' (converted to string if necessary)
+
+      const payNowPayload = createPayNowPayload(
+        appointment_date,
+        appointment_time,
+        hash_param
+      );
+      await sendPayNow(
+        `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/v2/paynow`,
+        payNowPayload
+      );
+      updateLoadingState(sl, "paynow", "success");
+      // ... continue with other steps if any
+    } catch (error) {
+      console.error("Error in process:", error);
+      updateLoadingState(sl, "perinfo", "failed");
+      setSnackbar({
+        open: true,
+        message: "Per Info process encountered an error.",
+      });
+    } finally {
+      handleActionClose();
     }
   };
-
-  // Filter users by search
-  // Updated filter: check top-level name or nested info array
+  // Filter users by search (name or webId)
   const filteredUsers = users.filter((u) => {
     const query = searchQuery.toLowerCase();
-    if (!query) return true; // if no search query, include all
-    // Check if user has a top-level name that matches
-    if (u.name && u.name.toLowerCase().includes(query)) {
-      return true;
+    return (
+      !query ||
+      (u.name && u.name.toLowerCase().includes(query)) ||
+      (u.webId && u.webId.toLowerCase().includes(query))
+    );
+  });
+
+  // Helper: Render cell content based on loading state
+  const renderCell = (sl, key) => {
+    const state = loadingStates[sl]?.[key] || "waiting";
+    if (state === "loading") {
+      return <CircularProgress size={20} />;
     }
-    // If not, and if user has nested info, check each info item
-    if (u.info && Array.isArray(u.info)) {
-      return u.info.some((infoItem) =>
-        infoItem.name.toLowerCase().includes(query)
+    if (state === "success") {
+      return (
+        <Box
+          sx={{
+            backgroundColor: "green",
+            color: "white",
+            padding: "4px",
+            borderRadius: "4px",
+            textAlign: "center",
+          }}
+        >
+          success
+        </Box>
       );
     }
-    return false;
-  });
+    return <Box>{state}</Box>;
+  };
 
   return (
     <Box sx={{ padding: "20px", fontFamily: "Arial, sans-serif" }}>
@@ -304,29 +300,13 @@ const UserListComponent = () => {
         }}
       >
         <TextField
-          placeholder="Search by name..."
+          placeholder="Search by name or webId..."
           variant="outlined"
           size="small"
           value={searchQuery}
           onChange={handleSearchChange}
           sx={{ width: "300px" }}
         />
-        {/* <Box sx={{ display: "flex", gap: "10px" }}>
-          <Select
-            value={status}
-            onChange={handleStatusChange}
-            displayEmpty
-            size="small"
-            sx={{ width: "150px" }}
-          >
-            <MenuItem value="">Status</MenuItem>
-            <MenuItem value="active">Active</MenuItem>
-            <MenuItem value="inactive">Inactive</MenuItem>
-          </Select>
-          <Button variant="contained" color="success">
-            Add New
-          </Button>
-        </Box> */}
       </Box>
 
       {/* Table */}
@@ -334,15 +314,15 @@ const UserListComponent = () => {
         <Table>
           <TableHead>
             <TableRow>
-              <TableCell>SL</TableCell>
               <TableCell>Name</TableCell>
               <TableCell>Web ID</TableCell>
-              <TableCell>Phone</TableCell>
-              <TableCell>Visa Type</TableCell>
-              <TableCell>OTP</TableCell>
-              <TableCell>Verify</TableCell>
-              <TableCell>Date</TableCell>
-              <TableCell>Payment Link</TableCell>
+              <TableCell>AP Info</TableCell>
+              <TableCell>Per Info</TableCell>
+              <TableCell>Overview</TableCell>
+              <TableCell>Send OTP</TableCell>
+              <TableCell>Verify OTP</TableCell>
+              <TableCell>Slot Time</TableCell>
+              <TableCell>Pay Now</TableCell>
               <TableCell>Action</TableCell>
             </TableRow>
           </TableHead>
@@ -356,151 +336,15 @@ const UserListComponent = () => {
             ) : (
               filteredUsers.map((user) => (
                 <TableRow key={user.sl}>
-                  <TableCell>{user.sl}</TableCell>
-                  <TableCell>
-                    {user.info &&
-                    Array.isArray(user.info) &&
-                    user.info.length > 0 ? (
-                      user.info.map((infoItem, idx) => (
-                        <div key={idx} style={{ marginBottom: "4px" }}>
-                          {infoItem.name}
-                        </div>
-                      ))
-                    ) : (
-                      <div>{user.name}</div>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    {user.info &&
-                    Array.isArray(user.info) &&
-                    user.info.length > 0 ? (
-                      user.info.map((infoItem, idx) => (
-                        <div key={idx} style={{ marginBottom: "4px" }}>
-                          {infoItem.web_id}
-                        </div>
-                      ))
-                    ) : (
-                      <div>{user.web_id}</div>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    {user.info &&
-                    Array.isArray(user.info) &&
-                    user.info.length > 0
-                      ? user.info[0].phone
-                      : user.phone}
-                  </TableCell>
-                  <TableCell>
-                    {user.info &&
-                    Array.isArray(user.info) &&
-                    user.info.length > 0
-                      ? user.info[0].visa_type?.type_name
-                      : user.visa_type?.type_name}
-                  </TableCell>
-
-                  <TableCell>
-                    {loadingStates[user.sl]?.otp === "loading" ? (
-                      <CircularProgress size={20} />
-                    ) : (
-                      <Box
-                        sx={{
-                          backgroundColor:
-                            loadingStates[user.sl]?.otp === "success"
-                              ? "green"
-                              : "transparent",
-                          color:
-                            loadingStates[user.sl]?.otp === "success"
-                              ? "white"
-                              : "inherit",
-                          padding: "4px",
-                          borderRadius: "4px",
-                          textAlign: "center",
-                        }}
-                      >
-                        {loadingStates[user.sl]?.otp || "waiting"}
-                      </Box>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    {loadingStates[user.sl]?.verify === "loading" ? (
-                      <CircularProgress size={20} />
-                    ) : (
-                      <Box
-                        sx={{
-                          backgroundColor:
-                            loadingStates[user.sl]?.verify === "success"
-                              ? "green"
-                              : "transparent",
-                          color:
-                            loadingStates[user.sl]?.verify === "success"
-                              ? "white"
-                              : "inherit",
-                          padding: "4px",
-                          borderRadius: "4px",
-                          textAlign: "center",
-                        }}
-                      >
-                        {loadingStates[user.sl]?.verify || "waiting"}
-                      </Box>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    {loadingStates[user.sl]?.date === "loading" ? (
-                      <CircularProgress size={20} />
-                    ) : (
-                      <Box
-                        sx={{
-                          backgroundColor:
-                            loadingStates[user.sl]?.date === "success"
-                              ? "green"
-                              : "transparent",
-                          color:
-                            loadingStates[user.sl]?.date === "success"
-                              ? "white"
-                              : "inherit",
-                          padding: "4px",
-                          borderRadius: "4px",
-                          textAlign: "center",
-                        }}
-                      >
-                        {loadingStates[user.sl]?.date || "waiting"}
-                      </Box>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    {loadingStates[user.sl]?.paymentLink === "loading" ? (
-                      <CircularProgress size={20} />
-                    ) : typeof loadingStates[user.sl]?.paymentLink ===
-                      "string" ? (
-                      <a
-                        href={loadingStates[user.sl]?.paymentLink}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        style={{
-                          color: "blue",
-                          textDecoration: "underline",
-                          cursor: "pointer",
-                        }}
-                      >
-                        Payment Link
-                      </a>
-                    ) : loadingStates[user.sl]?.paymentLink?.url ? (
-                      <a
-                        href={loadingStates[user.sl]?.paymentLink.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        style={{
-                          color: "blue",
-                          textDecoration: "underline",
-                          cursor: "pointer",
-                        }}
-                      >
-                        Payment Link
-                      </a>
-                    ) : (
-                      "waiting"
-                    )}
-                  </TableCell>
+                  <TableCell>{user.name}</TableCell>
+                  <TableCell>{user.webId}</TableCell>
+                  <TableCell>{renderCell(user.sl, "apinfo")}</TableCell>
+                  <TableCell>{renderCell(user.sl, "perinfo")}</TableCell>
+                  <TableCell>{renderCell(user.sl, "overview")}</TableCell>
+                  <TableCell>{renderCell(user.sl, "sendotp")}</TableCell>
+                  <TableCell>{renderCell(user.sl, "verifyotp")}</TableCell>
+                  <TableCell>{renderCell(user.sl, "slottime")}</TableCell>
+                  <TableCell>{renderCell(user.sl, "paynow")}</TableCell>
                   <TableCell>
                     <IconButton onClick={(e) => handleActionClick(e, user)}>
                       <MoreVertIcon />
@@ -512,22 +356,19 @@ const UserListComponent = () => {
           </TableBody>
         </Table>
       </TableContainer>
+
       {/* Action Menu */}
       <Menu
         anchorEl={anchorEl}
         open={Boolean(anchorEl)}
         onClose={handleActionClose}
       >
-        <ActionMenuItem onClick={() => handleActionSelect("start")}>
-          Start
-        </ActionMenuItem>
+        <ActionMenuItem onClick={handleStartProcess}>Start</ActionMenuItem>
         {selectedUser && (
           <ActionMenuItem onClick={() => handleDeleteUser(selectedUser.sl)}>
             Delete
           </ActionMenuItem>
         )}
-        {/* NEW: Stop button to cancel the ongoing start process */}
-        <ActionMenuItem onClick={handleStopAction}>Stop</ActionMenuItem>
       </Menu>
 
       {/* Footer Pagination / Rows-per-page */}
