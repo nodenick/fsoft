@@ -1,7 +1,8 @@
 export const createApInfoPayload = (selectedUser) => {
+  console.log(selectedUser);
   return {
     _token: localStorage.getItem("token") || "",
-    highcom: selectedUser.cName || "",
+    highcom: selectedUser.highcom || "",
     webfile_id: selectedUser.webId || "",
     webfile_id_repeat: selectedUser.webId || "",
     ivac_id: selectedUser.ivacName || "",
@@ -12,26 +13,41 @@ export const createApInfoPayload = (selectedUser) => {
 };
 
 export const createPerInfoPayload = (selectedUser) => {
-  return {
+  // Build base payload
+  const payload = {
     _token: localStorage.getItem("token") || "",
     full__name: selectedUser.name || "",
     email_name: selectedUser.email || "",
     pho_ne: selectedUser.phone || "",
-    // For family info, we’re sending only the first family member’s info.
-    "family[1][name]":
-      selectedUser.familyMembers && selectedUser.familyMembers.length > 0
-        ? selectedUser.familyMembers[0].familyName
-        : "",
-    "family[1][webfile_no]":
-      selectedUser.familyMembers && selectedUser.familyMembers.length > 0
-        ? selectedUser.familyMembers[0].familyWebId
-        : "",
-    "family[1][again_webfile_no]":
-      selectedUser.familyMembers && selectedUser.familyMembers.length > 0
-        ? selectedUser.familyMembers[0].familyWebId
-        : "",
+    web_file_id: selectedUser.webId || "",
   };
+
+  // If family members exist, add them to the payload
+  if (selectedUser.familyMembers && selectedUser.familyMembers.length > 0) {
+    selectedUser.familyMembers.forEach((member, index) => {
+      const idx = index + 1; // keys start from 1
+      payload[`family[${idx}][name]`] = member.familyName || "";
+      payload[`family[${idx}][webfile_no]`] = member.familyWebId || "";
+      payload[`family[${idx}][again_webfile_no]`] = member.familyWebId || "";
+    });
+  }
+
+  return payload;
 };
+
+// // For family info, we’re sending only the first family member’s info.
+// "family[1][name]":
+//   selectedUser.familyMembers && selectedUser.familyMembers.length > 0
+//     ? selectedUser.familyMembers[0].familyName
+//     : "",
+// "family[1][webfile_no]":
+//   selectedUser.familyMembers && selectedUser.familyMembers.length > 0
+//     ? selectedUser.familyMembers[0].familyWebId
+//     : "",
+// "family[1][again_webfile_no]":
+//   selectedUser.familyMembers && selectedUser.familyMembers.length > 0
+//     ? selectedUser.familyMembers[0].familyWebId
+//     : "",
 
 export const createOverviewPayload = () => {
   return {

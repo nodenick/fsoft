@@ -117,77 +117,83 @@ const UserListComponent = () => {
   const handleStartProcess = async () => {
     if (!selectedUser) return;
     const sl = selectedUser.sl;
+    let selectedHour, selectedDate;
+    let currentStep = "";
+
     try {
       // STEP 1: AP Info
-      updateLoadingState(sl, "apinfo", "loading");
+      currentStep = "apinfo";
+      updateLoadingState(sl, currentStep, "loading");
       const apPayload = createApInfoPayload(selectedUser);
       await sendApInfo(
         `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/v2/apinfo`,
         apPayload
       );
-      updateLoadingState(sl, "apinfo", "success");
+      updateLoadingState(sl, currentStep, "success");
 
       // STEP 2: PER Info
-      updateLoadingState(sl, "perinfo", "loading");
+      currentStep = "perinfo";
+      updateLoadingState(sl, currentStep, "loading");
       const perPayload = createPerInfoPayload(selectedUser);
       await sendPerInfo(
         `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/v2/personal-info-submit`,
         perPayload
       );
-      updateLoadingState(sl, "perinfo", "success");
+      updateLoadingState(sl, currentStep, "success");
 
       // STEP 3: Overview
-      updateLoadingState(sl, "overview", "loading");
+      currentStep = "overview";
+      updateLoadingState(sl, currentStep, "loading");
       const overviewPayload = createOverviewPayload();
       await sendOverview(
         `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/v2/overview-submit`,
         overviewPayload
       );
-      updateLoadingState(sl, "overview", "success");
+      updateLoadingState(sl, currentStep, "success");
 
       // STEP 4: Send OTP
-      updateLoadingState(sl, "sendotp", "loading");
+      currentStep = "sendotp";
+      updateLoadingState(sl, currentStep, "loading");
       const otpPayload = createSendOtpPayload();
       await sendOtp(
         `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/v2/pay-otp-sent`,
         otpPayload
       );
-      updateLoadingState(sl, "sendotp", "success");
+      updateLoadingState(sl, currentStep, "success");
 
       // STEP 5: Verify OTP
-      updateLoadingState(sl, "verifyotp", "loading");
-
-      // Prompt the user to enter the OTP
+      currentStep = "verifyotp";
+      updateLoadingState(sl, currentStep, "loading");
       const otp = window.prompt("Please enter the OTP received:");
       if (!otp) {
         throw new Error("OTP not provided");
       }
-
       const verifyPayload = createVerifyOtpPayload(otp);
-      await verifyOtp(
+      const verifyResponse = await verifyOtp(
         `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/v2/pay-otp-verify`,
         verifyPayload
       );
-      updateLoadingState(sl, "verifyotp", "success");
-      // Extract the first slot date from the response
-      const appointmentDate =
-        verifyOtpResponse?.data?.slot_dates &&
-        verifyOtpResponse.data.slot_dates.length > 0
-          ? verifyOtpResponse.data.slot_dates[0]
-          : "";
+      updateLoadingState(sl, currentStep, "success");
 
+      // Extract the appointment date from the OTP verification response
+      const appointmentDate =
+        verifyResponse?.data?.slot_dates &&
+        verifyResponse.data.slot_dates.length > 0
+          ? verifyResponse.data.slot_dates[0]
+          : "";
       if (!appointmentDate) {
         throw new Error("No appointment date available from OTP verification");
       }
 
-      // STEP 5: Slot Time Step
-      updateLoadingState(sl, "slottime", "loading");
+      // STEP 6: Slot Time
+      currentStep = "slottime";
+      updateLoadingState(sl, currentStep, "loading");
       const slotTimePayload = createSlotTimePayload(appointmentDate);
       const slotTimeResponse = await sendSlotTime(
         `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/v2/pay-slot-time`,
         slotTimePayload
       );
-      updateLoadingState(sl, "slottime", "success");
+      updateLoadingState(sl, currentStep, "success");
 
       // Extract slot time details
       const slotData = slotTimeResponse.data;
@@ -197,64 +203,56 @@ const UserListComponent = () => {
           : null;
 
       if (slotTimeDetails) {
-        // Extract the hour and date from the slot details
-        const selectedHour = slotTimeDetails.hour; // e.g., 10
-        const selectedDate = slotTimeDetails.date; // e.g., '2025-02-16'
+        selectedHour = slotTimeDetails.hour;
+        selectedDate = slotTimeDetails.date;
 
-        // Extract the siteKey from the captcha HTML using a regular expression
         const captchaHTML = slotTimeResponse.captcha;
         const siteKeyMatch = captchaHTML.match(/data-sitekey="([^"]+)"/);
         const siteKey = siteKeyMatch ? siteKeyMatch[1] : "";
-
-        // Now store these values for further use (you might save them in state or a context)
         console.log("Selected Hour:", selectedHour);
         console.log("Selected Date:", selectedDate);
         console.log("Site Key:", siteKey);
-
-        // For example, you could update your component state:
-        // setSelectedSlot({ hour: selectedHour, date: selectedDate, siteKey });
       } else {
-        console.warn("No slot time details available in the response");
+        throw new Error("No slot time details available in the response");
       }
 
-      // STEP 6: Pay Now Step
-      updateLoadingState(sl, "paynow", "loading");
-
-      // Prompt the user for the hash_param
+      // STEP 7: Pay Now
+      currentStep = "paynow";
+      updateLoadingState(sl, currentStep, "loading");
       const hash_param = window.prompt(
         "Please enter the hash_param for payment:"
       );
-
       if (!hash_param) {
         throw new Error("Payment hash_param is required.");
       }
-
-      // Assume you have the selected appointment date and time from the previous slot time step:
-      const appointment_date = selectedDate; // e.g., '2025-02-16'
-      const appointment_time = String(selectedHour); // e.g., '10' (converted to string if necessary)
-
+      if (!selectedDate || selectedHour === undefined) {
+        throw new Error("Slot time details are missing.");
+      }
       const payNowPayload = createPayNowPayload(
-        appointment_date,
-        appointment_time,
+        String(selectedDate),
+        String(selectedHour),
         hash_param
       );
       await sendPayNow(
         `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/v2/paynow`,
         payNowPayload
       );
-      updateLoadingState(sl, "paynow", "success");
+      updateLoadingState(sl, currentStep, "success");
+
       // ... continue with other steps if any
     } catch (error) {
       console.error("Error in process:", error);
-      updateLoadingState(sl, "perinfo", "failed");
+      // Use the currentStep variable to update the loading state of the step that failed.
+      updateLoadingState(sl, currentStep, "failed");
       setSnackbar({
         open: true,
-        message: "Per Info process encountered an error.",
+        message: `${currentStep} process encountered an error: ${error.message}`,
       });
     } finally {
       handleActionClose();
     }
   };
+
   // Filter users by search (name or webId)
   const filteredUsers = users.filter((u) => {
     const query = searchQuery.toLowerCase();

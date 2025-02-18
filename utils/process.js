@@ -1,6 +1,6 @@
 // utils/apinfo.js
 
-const retry = async (asyncFunc, delay = 500) => {
+const retry = async (asyncFunc, delay = 5000) => {
   while (true) {
     try {
       return await asyncFunc();
