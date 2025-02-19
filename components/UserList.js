@@ -175,7 +175,7 @@ const UserListComponent = () => {
       );
       updateLoadingState(sl, currentStep, "success");
 
-      // Extract the appointment date from the OTP verification response
+      // Extract appointment date from OTP verification response
       const appointmentDate =
         verifyResponse?.data?.slot_dates &&
         verifyResponse.data.slot_dates.length > 0
@@ -201,11 +201,9 @@ const UserListComponent = () => {
         slotData.slot_times && slotData.slot_times.length > 0
           ? slotData.slot_times[0]
           : null;
-
       if (slotTimeDetails) {
         selectedHour = slotTimeDetails.hour;
         selectedDate = slotTimeDetails.date;
-
         const captchaHTML = slotTimeResponse.captcha;
         const siteKeyMatch = captchaHTML.match(/data-sitekey="([^"]+)"/);
         const siteKey = siteKeyMatch ? siteKeyMatch[1] : "";
@@ -253,9 +251,31 @@ const UserListComponent = () => {
           break;
         }
       }
-      updateLoadingState(sl, currentStep, "success");
 
-      // ... continue with other steps if any
+      // Handle successful response from Pay Now step
+      if (validPayNowResponse?.success && validPayNowResponse?.url) {
+        updateLoadingState(sl, currentStep, "success");
+        setSnackbar({
+          open: true,
+          message: "Slot booking initiated. Click the payment link below:",
+          action: (
+            <a
+              href={validPayNowResponse.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                color: "#fff",
+                textDecoration: "underline",
+                marginLeft: "16px",
+              }}
+            >
+              Pay Now
+            </a>
+          ),
+        });
+      } else {
+        throw new Error("Unexpected response from the Pay Now step.");
+      }
     } catch (error) {
       console.error("Error in process:", error);
       // Update the loading state of the step that failed.
