@@ -352,7 +352,7 @@ const FormComponent = ({ isOpen, onClose }) => {
           <Grid item xs={12}>
             <Button
               variant="contained"
-              color="primary"
+              color="success"
               startIcon={<AddIcon />}
               onClick={handleSubmit}
               fullWidth

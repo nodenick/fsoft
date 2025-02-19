@@ -31,6 +31,7 @@ export const highcom = {
   Chittagong: "2",
   Sylhet: "3",
   Khulna: "4",
+  Rajshahi: "3",
 };
 
 // New mapping for IVAC centers based on IVAC name dropdown options.

@@ -219,30 +219,46 @@ const UserListComponent = () => {
       // STEP 7: Pay Now
       currentStep = "paynow";
       updateLoadingState(sl, currentStep, "loading");
-      const hash_param = window.prompt(
-        "Please enter the hash_param for payment:"
-      );
-      if (!hash_param) {
-        throw new Error("Payment hash_param is required.");
-      }
+
       if (!selectedDate || selectedHour === undefined) {
         throw new Error("Slot time details are missing.");
       }
-      const payNowPayload = createPayNowPayload(
-        String(selectedDate),
-        String(selectedHour),
-        hash_param
-      );
-      await sendPayNow(
-        `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/v2/paynow`,
-        payNowPayload
-      );
+
+      let validPayNowResponse = null;
+      while (true) {
+        const hash_param = window.prompt(
+          "Please enter the hash_param for payment:"
+        );
+        if (!hash_param) {
+          throw new Error("Payment hash_param is required.");
+        }
+        const payNowPayload = createPayNowPayload(
+          String(selectedDate),
+          String(selectedHour),
+          hash_param
+        );
+        validPayNowResponse = await sendPayNow(
+          `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/v2/paynow`,
+          payNowPayload
+        );
+        // If the response indicates validation failure, prompt again.
+        if (
+          validPayNowResponse?.success === false &&
+          validPayNowResponse?.message ===
+            "Validation failed. Please try again later."
+        ) {
+          alert("Invalid hash_param provided. Please try again.");
+          continue;
+        } else {
+          break;
+        }
+      }
       updateLoadingState(sl, currentStep, "success");
 
       // ... continue with other steps if any
     } catch (error) {
       console.error("Error in process:", error);
-      // Use the currentStep variable to update the loading state of the step that failed.
+      // Update the loading state of the step that failed.
       updateLoadingState(sl, currentStep, "failed");
       setSnackbar({
         open: true,
